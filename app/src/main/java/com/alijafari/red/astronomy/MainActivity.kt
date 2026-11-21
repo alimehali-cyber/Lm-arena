@@ -40,9 +40,12 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import com.alijafari.red.astronomy.ui.StartupTrace
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -361,6 +364,10 @@ class MainActivity : ComponentActivity() {
                     CompositionLocalProvider(
                         com.alijafari.red.astronomy.ui.theme.LocalBackdropLuminance provides backdropLuminance
                     ) {
+                    var settingsSourceBounds by remember { mutableStateOf<Rect?>(null) }
+                    val settingsButtonModifier = Modifier.onGloballyPositioned { coordinates ->
+                        settingsSourceBounds = coordinates.boundsInWindow()
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -498,46 +505,58 @@ class MainActivity : ComponentActivity() {
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
                     val satellitesChromeOccluded by viewModel.satellitesChromeOccluded.collectAsStateWithLifecycle()
                     if (!com.zig.gravity.ui.ImmersiveScreenState.active && !(uiState.selectedTab == 1 && satellitesChromeOccluded)) {
-                        // The dock is three quarters of the width and sits on the leading side — the
-                        // right in Persian, the left in English — with the settings bubble in the
-                        // space it leaves on the trailing side. They always travel together.
+                        // The capsule dock and circular settings control form one centered group
+                        // across all three UI styles, with a compact gap and a dock width cap.
                         val chromeModifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .navigationBarsPadding()
                             .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
                             .splashReveal(splashState, SplashRevealRole.NavigationBar)
-                        Row(
+                        BoxWithConstraints(
                             modifier = chromeModifier,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            contentAlignment = Alignment.Center
                         ) {
-                            val navModifier = Modifier.fillMaxWidth(
-                                com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_WIDTH_FRACTION
+                            val navModifier = Modifier.width(
+                                com.alijafari.red.astronomy.ui.components.bottomNavWidth(maxWidth)
                             )
-                            when (uiState.uiStyle) {
-                                AppUiStyle.AETHER -> AetherFloatingNavBar(
-                                    selectedTab = uiState.selectedTab,
-                                    onTabSelected = { viewModel.selectTab(it) },
-                                    modifier = navModifier
-                                )
-                                AppUiStyle.SPATIAL -> SpatialFloatingNavBar(
-                                    selectedTab = uiState.selectedTab,
-                                    onTabSelected = { viewModel.selectTab(it) },
-                                    modifier = navModifier
-                                )
-                                AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
-                                    selectedTab = uiState.selectedTab,
-                                    onTabSelected = { viewModel.selectTab(it) },
-                                    modifier = navModifier
-                                )
-                            }
-                            val openSettings = { viewModel.setShowSettingsDialog(true) }
-                            when (uiState.uiStyle) {
-                                AppUiStyle.AETHER -> AetherSettingsBubble(onClick = openSettings)
-                                AppUiStyle.SPATIAL -> SpatialSettingsBubble(onClick = openSettings)
-                                AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components
-                                    .FloatingSettingsBubble(onClick = openSettings)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(
+                                    com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_SETTINGS_GAP,
+                                    Alignment.CenterHorizontally
+                                ),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                when (uiState.uiStyle) {
+                                    AppUiStyle.AETHER -> AetherFloatingNavBar(
+                                        selectedTab = uiState.selectedTab,
+                                        onTabSelected = { viewModel.selectTab(it) },
+                                        modifier = navModifier
+                                    )
+                                    AppUiStyle.SPATIAL -> SpatialFloatingNavBar(
+                                        selectedTab = uiState.selectedTab,
+                                        onTabSelected = { viewModel.selectTab(it) },
+                                        modifier = navModifier
+                                    )
+                                    AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
+                                        selectedTab = uiState.selectedTab,
+                                        onTabSelected = { viewModel.selectTab(it) },
+                                        modifier = navModifier
+                                    )
+                                }
+                                val openSettings = { viewModel.setShowSettingsDialog(true) }
+                                when (uiState.uiStyle) {
+                                    AppUiStyle.AETHER -> AetherSettingsBubble(
+                                        onClick = openSettings,
+                                        modifier = settingsButtonModifier
+                                    )
+                                    AppUiStyle.SPATIAL -> SpatialSettingsBubble(
+                                        onClick = openSettings,
+                                        modifier = settingsButtonModifier
+                                    )
+                                    AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components
+                                        .FloatingSettingsBubble(onClick = openSettings, modifier = settingsButtonModifier)
+                                }
                             }
                         }
                     }
@@ -609,21 +628,24 @@ class MainActivity : ComponentActivity() {
 
                       if (uiState.showSettingsDialog) {
                           when (uiState.uiStyle) {
-                              AppUiStyle.AETHER -> AetherSettingsModal(
-                                  uiState = uiState,
-                                  viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
-                              )
-                              AppUiStyle.SPATIAL -> SpatialSettingsModal(
-                                  uiState = uiState,
-                                  viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
-                              )
-                              AppUiStyle.DEFAULT -> SettingsDialog(
-                                  uiState = uiState,
-                                  viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
-                              )
+                          AppUiStyle.AETHER -> AetherSettingsModal(
+                              uiState = uiState,
+                              viewModel = viewModel,
+                              sourceBounds = settingsSourceBounds,
+                              onDismiss = { viewModel.setShowSettingsDialog(false) }
+                          )
+                          AppUiStyle.SPATIAL -> SpatialSettingsModal(
+                              uiState = uiState,
+                              viewModel = viewModel,
+                              sourceBounds = settingsSourceBounds,
+                              onDismiss = { viewModel.setShowSettingsDialog(false) }
+                          )
+                          AppUiStyle.DEFAULT -> SettingsDialog(
+                              uiState = uiState,
+                              viewModel = viewModel,
+                              sourceBounds = settingsSourceBounds,
+                              onDismiss = { viewModel.setShowSettingsDialog(false) }
+                          )
                           }
                       }
 

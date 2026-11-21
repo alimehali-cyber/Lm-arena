@@ -187,7 +187,11 @@ class AetherUiTest {
                 navArIdx < navSatIdx &&
                 navSatIdx < navLabIdx
         )
-        assertTrue(settings.contains("settings_ui_style_aether"))
+        val sharedSettings = source("com/alijafari/red/astronomy/ui/components/SettingsDialog.kt")
+        assertTrue(settings.contains("SettingsDialog("))
+        assertTrue(settings.contains("sourceBounds = sourceBounds"))
+        assertTrue(sharedSettings.contains("settings_ui_style_aether"))
+        assertTrue(sharedSettings.contains("settings_section_about"))
         assertTrue(stringsEn.contains("<string name=\"ui_style_aether\">Aether Telemetry UI</string>"))
         assertTrue(stringsFa.contains("<string name=\"ui_style_aether\">"))
     }

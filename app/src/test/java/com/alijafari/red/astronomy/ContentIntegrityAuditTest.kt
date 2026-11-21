@@ -29,11 +29,11 @@ class ContentIntegrityAuditTest {
     private val allObjects: List<CanonicalAstroObject> by lazy { CanonicalAstroCatalog.getAllCanonicalObjects() }
 
     // ------------------------------------------------------------------ //
-    // Union-list reachability: one unified canonical set, 336 objects.    //
+    // Union-list reachability: one unified canonical set, 632 objects.
     // ------------------------------------------------------------------ //
 
     @Test
-    fun unionListHasExactlyThreeHundredThirtySixReachableObjects() {
+    fun unionListHasExactlySixHundredThirtyTwoReachableObjects() {
         assertEquals(
             "Canonical union-list size changed unexpectedly; the audit scope is the full union",
             632,

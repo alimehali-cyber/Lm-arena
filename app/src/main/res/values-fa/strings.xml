@@ -72,6 +72,14 @@
     <string name="favorites_and_history">نشان‌شده‌ها و گزارش‌های رصد</string>
     <string name="settings">تنظیمات</string>
     <string name="app_settings">تنظیمات دستیار رصد زیگ</string>
+    <string name="settings_group_general">عمومی</string>
+    <string name="settings_group_appearance">ظاهر</string>
+    <string name="settings_group_sky">آسمان</string>
+    <string name="settings_group_about">درباره</string>
+    <string name="settings_about_description">همراهی دوزبانه برای کاوش آسمان زنده، راهنمای اجرام نجومی، گذر ماهواره‌ها، ابزارهای رصد و آزمایشگاه‌های تعاملی فضا.</string>
+    <string name="settings_about_creator">ساخته و توسعه‌یافته توسط</string>
+    <string name="settings_about_version">نسخه %1$s</string>
+    <string name="settings_about_contact">راه ارتباطی</string>
     <string name="application_language">زبان برنامه (Language):</string>
     <string name="language_persian">فارسی (Persian)</string>
     <string name="language_english">English</string>

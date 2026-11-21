@@ -4,11 +4,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -44,7 +46,8 @@ import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.ui.aether.AetherFloatingNavBar
 import com.alijafari.red.astronomy.ui.aether.AetherSettingsBubble
 import com.alijafari.red.astronomy.ui.aether.AetherThemeProvider
-import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_WIDTH_FRACTION
+import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_SETTINGS_GAP
+import com.alijafari.red.astronomy.ui.components.bottomNavWidth
 import com.alijafari.red.astronomy.ui.components.FloatingBottomBar
 import com.alijafari.red.astronomy.ui.components.FloatingSettingsBubble
 import com.alijafari.red.astronomy.ui.components.SATELLITE_EARTH_DEFAULT_DISTANCE
@@ -178,23 +181,31 @@ internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detai
                                 actionsFor = { actions }, sourceModifier = { Modifier }, tz = tz,
                                 selectedPassKey = if (selectedAgendaPass) passes.first().key else null) })
                         if (state.activePanel != SatPanel.Passes) {
-                            Row(
-                                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                            BoxWithConstraints(
+                                modifier = Modifier.align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
                                     .navigationBarsPadding()
                                     .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+                                contentAlignment = Alignment.Center
                             ) {
-                                val navModifier = Modifier.fillMaxWidth(BOTTOM_NAV_WIDTH_FRACTION)
-                                when (skin) {
-                                    SatSkin.DEFAULT -> FloatingBottomBar(1, {}, navModifier)
-                                    SatSkin.SPATIAL -> SpatialFloatingNavBar(1, {}, navModifier)
-                                    SatSkin.AETHER -> AetherFloatingNavBar(1, {}, navModifier)
-                                }
-                                when (skin) {
-                                    SatSkin.DEFAULT -> FloatingSettingsBubble({})
-                                    SatSkin.SPATIAL -> SpatialSettingsBubble({})
-                                    SatSkin.AETHER -> AetherSettingsBubble({})
+                                val navModifier = Modifier.width(bottomNavWidth(maxWidth))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(
+                                        BOTTOM_NAV_SETTINGS_GAP,
+                                        Alignment.CenterHorizontally
+                                    ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    when (skin) {
+                                        SatSkin.DEFAULT -> FloatingBottomBar(1, {}, navModifier)
+                                        SatSkin.SPATIAL -> SpatialFloatingNavBar(1, {}, navModifier)
+                                        SatSkin.AETHER -> AetherFloatingNavBar(1, {}, navModifier)
+                                    }
+                                    when (skin) {
+                                        SatSkin.DEFAULT -> FloatingSettingsBubble({})
+                                        SatSkin.SPATIAL -> SpatialSettingsBubble({})
+                                        SatSkin.AETHER -> AetherSettingsBubble({})
+                                    }
                                 }
                             }
                         }

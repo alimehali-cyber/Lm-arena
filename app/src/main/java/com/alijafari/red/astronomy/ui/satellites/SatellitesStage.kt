@@ -47,6 +47,7 @@ import com.alijafari.red.astronomy.notification.AstroNotificationStore
 import com.alijafari.red.astronomy.rememberEarthCameraController
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.components.BOTTOM_CONTROLS_HEIGHT
 import com.alijafari.red.astronomy.ui.components.EarthFocusTarget
 import com.alijafari.red.astronomy.ui.components.SATELLITE_EARTH_DEFAULT_DISTANCE
 import com.alijafari.red.astronomy.ui.components.SatelliteEarth3D
@@ -715,8 +716,8 @@ internal fun SatelliteHud(
         val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val top = topInset + if (state.legend) 292.dp else if (!status.isLive) 148.dp else 112.dp
-        // The dock is a quarter shorter than it was: 48 dp of pill plus its 8 dp margins.
-        val navClearance = bottomInset + 68.dp
+        // Keep cards above the 56 dp controls, their 8 dp bottom pad, and a 12 dp visual gap.
+        val navClearance = bottomInset + BOTTOM_CONTROLS_HEIGHT + 20.dp
         val compact = width < 360.dp || height - topInset - bottomInset < 700.dp
         val padding = if (width >= 412.dp) 20.dp else 16.dp
         // Both cards below the globe are measured together, so the framing never assumes a height.

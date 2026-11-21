@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
@@ -49,12 +50,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
+import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_HEIGHT
+import com.alijafari.red.astronomy.ui.components.BOTTOM_SETTINGS_SIZE
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
-
-/** Three quarters of the old 62 dp dock, so the settings bubble has room beside it. */
-private val AETHER_NAV_HEIGHT = 46.dp
 
 private data class AetherDockTab(
     val index: Int,
@@ -65,11 +65,9 @@ private data class AetherDockTab(
 )
 
 /**
- * Floating Aether Telemetry Capsule Dock: a squircle pill, three quarters of the old bar's height,
- * that takes three quarters of the width on the leading side so the settings bubble has the space
- * it leaves. Frameless optical capsule (`FrostedGlassFill` `#14FFFFFF`) with razor-thin `1.dp`
- * directional specular rim border, deep crimson jewel active lens, bouncy spring physics, and
- * `HapticFeedbackType.TextHandleMove` feedback.
+ * Floating Aether telemetry dock: the shared 56 dp glass capsule, centered beside a circular
+ * settings control. Frameless optical surface with a razor-thin directional specular rim, deep
+ * crimson jewel active lens, bouncy spring physics, and `TextHandleMove` haptic feedback.
  */
 @Composable
 fun AetherFloatingNavBar(
@@ -94,7 +92,7 @@ fun AetherFloatingNavBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(AETHER_NAV_HEIGHT)
+                .height(BOTTOM_NAV_HEIGHT)
                 .shadow(
                     elevation = 24.dp,
                     shape = shape,
@@ -127,8 +125,8 @@ fun AetherFloatingNavBar(
                 )
                 val pill = squircleShape(RedCornerRadius.pill)
 
-                // Icon over label in both states: the dock is a quarter narrower, and a horizontal
-                // jewel lens cannot hold a Persian satellite label at this width.
+                // Icon over label so translations, especially the Persian satellite label, fit
+                // within this compact navigation tab.
                 Column(
                     modifier = Modifier
                         .weight(if (isSelected) 1.08f else 0.97f)
@@ -168,14 +166,14 @@ fun AetherFloatingNavBar(
                         imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
                         contentDescription = stringResource(tab.labelRes),
                         tint = if (isSelected) Color.White else palette.textSecondary,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
                         text = stringResource(tab.labelRes),
                         style = RedTypographyTokens.caption.copy(
                             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Light,
-                            fontSize = 9.5.sp,
+                            fontSize = 10.sp,
                             letterSpacing = (-0.2).sp
                         ),
                         color = if (isSelected) Color.White else palette.mutedTelemetry,
@@ -188,20 +186,17 @@ fun AetherFloatingNavBar(
     }
 }
 
-/**
- * Settings, in the space the dock leaves on the trailing side: same frosted capsule, same crimson
- * rim, so the dock and it read as one piece of chrome. It appears wherever the dock appears.
- */
+/** Circular settings control, sharing the dock's frosted glass and crimson rim. */
 @Composable
 fun AetherSettingsBubble(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val palette = AetherTheme.palette
-    val shape = squircleShape(RedCornerRadius.pill)
+    val shape = CircleShape
     Box(
         modifier = modifier
-            .size(AETHER_NAV_HEIGHT)
+            .size(BOTTOM_SETTINGS_SIZE)
             .testTag("bottom_settings_button")
             .shadow(
                 elevation = 24.dp,
@@ -220,7 +215,7 @@ fun AetherSettingsBubble(
             imageVector = Icons.Outlined.Settings,
             contentDescription = stringResource(R.string.settings),
             tint = palette.textSecondary,
-            modifier = Modifier.size(17.dp)
+            modifier = Modifier.size(21.dp)
         )
     }
 }

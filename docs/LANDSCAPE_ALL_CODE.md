@@ -9946,7 +9946,7 @@ import kotlin.math.roundToInt
 /** MoonEngine.calculateMoon runs ELP2000 plus an iterative MoonTimes rise/set solve. */
 private const val MOON_REFRESH_MS = 60_000L
 
-/** AstronomyCatalog.getAllObjects pushes all ~336 objects through calculateState, then Home maps and sorts them. */
+/** AstronomyCatalog.getAllObjects pushes the 632-object canonical union through calculateState, then Home maps and sorts it. */
 private const val CATALOG_REFRESH_MS = 60_000L
 
 /**
@@ -10012,7 +10012,7 @@ fun HomeScreen(
     // instant the hero canvas draws the sky for.
     val jd = remember(activeTimeMs) { TimeEngine.getJulianDate(activeTimeMs) }
 
-    // Whole-catalog pass: ~336 objects through AstroDispatchEngine.calculateState.
+    // Whole-catalog pass: 632 canonical objects through AstroDispatchEngine.calculateState.
     val catalogJd = remember(catalogKeyMs) { TimeEngine.getJulianDate(catalogKeyMs) }
     val allObjects = remember(catalogJd) { AstronomyCatalog.getAllObjects(catalogJd) }
     val catalogLastDeg = remember(catalogJd, uiState.userLocation) {
@@ -10023,7 +10023,7 @@ fun HomeScreen(
     //
     // Keyed on the CATALOG bucket, NOT on the 1 Hz `jd`. `sunHoriz` is also an input to
     // sortedObjectsWithObs below, so deriving it from the live clock would drag the
-    // whole ~336-object filter/map/sort along at 1 Hz and silently defeat
+    // whole 632-object filter/map/sort along at 1 Hz and silently defeat
     // CATALOG_REFRESH_MS. Bucketing costs nothing observable: solar altitude moves by
     // at most ~15 deg/hour (0.25 deg/min), while the twilight bands it selects between
     // (0, -6, -12, -18 deg) are 6 deg apart, so a 60 s snapshot is finer than the

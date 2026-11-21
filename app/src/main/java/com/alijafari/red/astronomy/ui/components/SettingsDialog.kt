@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.ui.components
 
-import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -32,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.BuildConfig
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.AppUiStyle
@@ -128,12 +131,13 @@ private val BORTLE_CLASSES = listOf(
 fun SettingsDialog(
     uiState: MainUiState,
     viewModel: MainViewModel,
+    sourceBounds: Rect?,
     onDismiss: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isFa = uiState.language == AppLanguage.PERSIAN
+    var selectedPage by remember { mutableStateOf(SettingsPage.GENERAL) }
 
-    // Expandable section states (all collapsed by default, tapped to expand/collapse)
     var isUiStyleExpanded by remember { mutableStateOf(false) }
     var isLanguageExpanded by remember { mutableStateOf(false) }
     var isCalendarExpanded by remember { mutableStateOf(false) }
@@ -142,29 +146,24 @@ fun SettingsDialog(
     var isAppBackdropExpanded by remember { mutableStateOf(false) }
     var isBortleExpanded by remember { mutableStateOf(false) }
 
-    // Formatted collapsed labels
     val uiStyleLabel = when (uiState.uiStyle) {
         AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
         AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
         AppUiStyle.AETHER -> stringResource(R.string.ui_style_aether)
     }
-
     val languageLabel = when (uiState.language) {
         AppLanguage.PERSIAN -> if (isFa) "فارسی" else "Persian"
         AppLanguage.ENGLISH -> if (isFa) "انگلیسی" else "English"
     }
-
     val calendarLabel = when (uiState.calendarSystem) {
         CalendarSystem.SOLAR_HIJRI -> if (isFa) "هجری شمسی" else "Solar Hijri"
         CalendarSystem.GREGORIAN -> if (isFa) "میلادی" else "Gregorian"
     }
-
     val appThemeLabel = when (uiState.themeMode) {
         ThemeMode.LIGHT -> if (isFa) "روشن" else "Light"
         ThemeMode.DARK -> if (isFa) "تاریک (OLED)" else "Dark (OLED)"
         ThemeMode.WINE -> stringResource(R.string.theme_wine)
     }
-
     val skyCanvasThemeLabel = when (uiState.skyCanvasTheme) {
         SkyCanvasTheme.REAL_SKY -> if (isFa) "آسمان واقعی" else "Real Sky"
         SkyCanvasTheme.ATMOSPHERIC_SKY -> if (isFa) "آسمان جوی" else "Atmospheric"
@@ -173,503 +172,518 @@ fun SettingsDialog(
         SkyCanvasTheme.OBSERVATORY -> if (isFa) "رصدخانه" else "Observatory"
         SkyCanvasTheme.PAPERCRAFT_DIORAMA -> if (isFa) "دیوراما کاغذ برجسته" else "Papercraft"
     }
-
     val liveSkyStatusLabel = when (uiState.appBackdropMode) {
         AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_setting)
         AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_setting)
         AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_setting)
         AppBackdropMode.NONE -> if (isFa) "خاموش" else "Off"
     }
-
     val bortleLabel = if (isFa) "کلاس ${uiState.bortleClass}" else "Class ${uiState.bortleClass}"
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("settings_dialog"),
-        shape = squircleShape(RedCornerRadius.xl),
-        containerColor = RedTheme.colors.surfaceElevated,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
-                    modifier = Modifier.size(34.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = null,
-                            tint = RedTheme.colors.accentRed,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-                Text(
-                    text = stringResource(R.string.app_settings),
-                    style = RedTypographyTokens.sectionHeading,
-                    color = RedTheme.colors.textPrimary
-                )
-            }
-        },
-        text = {
+    SettingsDialogMotion(sourceBounds = sourceBounds, onDismiss = onDismiss) { panelModifier, dismiss ->
+        RedSurface(
+            modifier = panelModifier.testTag("settings_dialog"),
+            shape = squircleShape(RedCornerRadius.xl),
+            color = RedTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, RedTheme.colors.border),
+            elevation = RedElevation.floating,
+        ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm + 2.dp)
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                // 0. UI Style Dropdown Section (Default UI vs Spatial UI)
-                ExpandableSettingsSection(
-                    title = stringResource(R.string.ui_style_title),
-                    currentValueLabel = uiStyleLabel,
-                    icon = Icons.Outlined.Widgets,
-                    isExpanded = isUiStyleExpanded,
-                    onToggle = { isUiStyleExpanded = !isUiStyleExpanded },
-                    testTag = "settings_section_ui_style"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SettingsOptionRow(
-                        title = stringResource(R.string.ui_style_default),
-                        subtitle = stringResource(R.string.ui_style_default_desc),
-                        isSelected = uiState.uiStyle == AppUiStyle.DEFAULT,
-                        onClick = { viewModel.setUiStyle(AppUiStyle.DEFAULT) },
-                        modifier = Modifier.testTag("settings_ui_style_default")
-                    )
-                    SettingsOptionRow(
-                        title = stringResource(R.string.ui_style_spatial),
-                        subtitle = stringResource(R.string.ui_style_spatial_desc),
-                        isSelected = uiState.uiStyle == AppUiStyle.SPATIAL,
-                        onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
-                        modifier = Modifier.testTag("settings_ui_style_spatial")
-                    )
-                    SettingsOptionRow(
-                        title = stringResource(R.string.ui_style_aether),
-                        subtitle = stringResource(R.string.ui_style_aether_desc),
-                        isSelected = uiState.uiStyle == AppUiStyle.AETHER,
-                        onClick = { viewModel.setUiStyle(AppUiStyle.AETHER) },
-                        modifier = Modifier.testTag("settings_ui_style_aether")
-                    )
-                }
-
-                // 1. Language Dropdown Section
-                ExpandableSettingsSection(
-                    title = stringResource(R.string.application_language),
-                    currentValueLabel = languageLabel,
-                    icon = Icons.Default.Language,
-                    isExpanded = isLanguageExpanded,
-                    onToggle = { isLanguageExpanded = !isLanguageExpanded },
-                    testTag = "settings_section_language"
-                ) {
-                    SettingsOptionRow(
-                        title = stringResource(R.string.language_persian),
-                        subtitle = "فارسی (Persian)",
-                        isSelected = uiState.language == AppLanguage.PERSIAN,
-                        onClick = { viewModel.setLanguage(AppLanguage.PERSIAN) }
-                    )
-                    SettingsOptionRow(
-                        title = stringResource(R.string.language_english),
-                        subtitle = "English (US)",
-                        isSelected = uiState.language == AppLanguage.ENGLISH,
-                        onClick = { viewModel.setLanguage(AppLanguage.ENGLISH) }
-                    )
-                }
-
-                // 2. Calendar System Dropdown Section
-                ExpandableSettingsSection(
-                    title = stringResource(R.string.calendar_system),
-                    currentValueLabel = calendarLabel,
-                    icon = Icons.Default.CalendarToday,
-                    isExpanded = isCalendarExpanded,
-                    onToggle = { isCalendarExpanded = !isCalendarExpanded },
-                    testTag = "settings_section_calendar"
-                ) {
-                    SettingsOptionRow(
-                        title = stringResource(R.string.calendar_solar_hijri),
-                        subtitle = if (isFa) "تقویم خورشیدی رسمی ایران" else "Solar Hijri Calendar",
-                        isSelected = uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI,
-                        onClick = { viewModel.setCalendarSystem(CalendarSystem.SOLAR_HIJRI) }
-                    )
-                    SettingsOptionRow(
-                        title = stringResource(R.string.calendar_gregorian),
-                        subtitle = if (isFa) "تقویم بین‌المللی میلادی" else "Gregorian International Calendar",
-                        isSelected = uiState.calendarSystem == CalendarSystem.GREGORIAN,
-                        onClick = { viewModel.setCalendarSystem(CalendarSystem.GREGORIAN) }
-                    )
-                }
-
-                // 3. App Theme Dropdown Section
-                ExpandableSettingsSection(
-                    title = if (isFa) "پوسته برنامه" else "App Theme",
-                    currentValueLabel = appThemeLabel,
-                    icon = Icons.Default.Palette,
-                    isExpanded = isAppThemeExpanded,
-                    onToggle = { isAppThemeExpanded = !isAppThemeExpanded },
-                    testTag = "settings_section_app_theme"
-                ) {
-                    SettingsOptionRow(
-                        title = if (isFa) "روشن" else "Light",
-                        isSelected = uiState.themeMode == ThemeMode.LIGHT,
-                        onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "تاریک (OLED)" else "Dark (OLED)",
-                        isSelected = uiState.themeMode == ThemeMode.DARK,
-                        onClick = { viewModel.setThemeMode(ThemeMode.DARK) }
-                    )
-                    SettingsOptionRow(
-                        title = stringResource(R.string.theme_wine),
-                        subtitle = stringResource(R.string.theme_wine_desc),
-                        isSelected = uiState.themeMode == ThemeMode.WINE,
-                        onClick = { viewModel.setThemeMode(ThemeMode.WINE) },
-                        modifier = Modifier.testTag("settings_theme_wine")
-                    )
-                }
-
-                // 4. Sky Canvas Theme Dropdown Section
-                ExpandableSettingsSection(
-                    title = if (isFa) "سبک هنری آسمان (RMAE)" else "Sky Canvas Theme",
-                    currentValueLabel = skyCanvasThemeLabel,
-                    icon = Icons.Default.AutoAwesome,
-                    isExpanded = isSkyCanvasThemeExpanded,
-                    onToggle = { isSkyCanvasThemeExpanded = !isSkyCanvasThemeExpanded },
-                    testTag = "settings_section_sky_theme"
-                ) {
-                    SettingsOptionRow(
-                        title = if (isFa) "آسمان واقعی (Real Sky)" else "Real Sky",
-                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.REAL_SKY,
-                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.REAL_SKY) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "آسمان جوی (Atmospheric)" else "Atmospheric Sky",
-                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY,
-                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.ATMOSPHERIC_SKY) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "تک‌رنگ علمی (Monochrome)" else "Monochrome Scientific",
-                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC,
-                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME_SCIENTIFIC) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "آبرنگ کودکانه (Watercolor)" else "Kids Watercolor",
-                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.KIDS_WATERCOLOR,
-                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.KIDS_WATERCOLOR) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "رصدخانه (Observatory)" else "Observatory",
-                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY,
-                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.OBSERVATORY) }
-                    )
-                    SettingsOptionRow(
-                        title = if (isFa) "دیوراما کاغذ برجسته (Papercraft)" else "Papercraft Diorama",
-                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.PAPERCRAFT_DIORAMA,
-                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.PAPERCRAFT_DIORAMA) }
-                    )
-                }
-
-                // 5. App Backdrop Section. One live option, default OFF.
-                ExpandableSettingsSection(
-                    title = stringResource(R.string.app_backdrop_title),
-                    currentValueLabel = liveSkyStatusLabel,
-                    icon = Icons.Outlined.NightsStay,
-                    isExpanded = isAppBackdropExpanded,
-                    onToggle = { isAppBackdropExpanded = !isAppBackdropExpanded },
-                    statusColor = if (uiState.appBackdropMode != AppBackdropMode.NONE) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
-                    testTag = "settings_section_app_backdrop"
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
-                        ) {
-                            FilterChip(
-                                selected = uiState.appBackdropMode == AppBackdropMode.NONE,
-                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NONE) },
-                                label = { Text(text = if (isFa) "خاموش" else "Off", fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RedTheme.colors.accentRed,
-                                    selectedLabelColor = Color.White
-                                ),
-                                modifier = Modifier.testTag("settings_backdrop_off")
-                            )
-                            FilterChip(
-                                selected = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
-                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.LIVE_SKY) },
-                                label = { Text(text = stringResource(R.string.live_sky_setting), fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RedTheme.colors.accentRed,
-                                    selectedLabelColor = Color.White
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("settings_live_sky_switch")
-                            )
-                            FilterChip(
-                                selected = uiState.appBackdropMode == AppBackdropMode.NGC_1929,
-                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NGC_1929) },
-                                label = { Text(text = stringResource(R.string.backdrop_ngc1929_setting), fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RedTheme.colors.accentRed,
-                                    selectedLabelColor = Color.White
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("settings_backdrop_ngc1929")
+                    Surface(
+                        shape = CircleShape,
+                        color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(21.dp)
                             )
                         }
-                        FilterChip(
-                            selected = uiState.appBackdropMode == AppBackdropMode.CEPHEUS,
-                            onClick = { viewModel.setAppBackdropMode(AppBackdropMode.CEPHEUS) },
-                            label = { Text(text = stringResource(R.string.backdrop_cepheus_setting), fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = RedTheme.colors.accentRed,
-                                selectedLabelColor = Color.White
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("settings_backdrop_cepheus")
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.app_settings),
+                            style = RedTypographyTokens.sectionHeading,
+                            color = RedTheme.colors.textPrimary
                         )
                         Text(
-                            text = when (uiState.appBackdropMode) {
-                                AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_desc)
-                                AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_desc)
-                                AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_desc)
-                                AppBackdropMode.NONE -> stringResource(R.string.backdrop_off_desc)
-                            },
+                            text = stringResource(R.string.app_subtitle),
                             style = RedTypographyTokens.caption,
                             color = RedTheme.colors.textSecondary
                         )
                     }
-                }
-
-                // 6. Bortle Light-Pollution Dedicated Section & Guide
-                ExpandableSettingsSection(
-                    title = if (isFa) "آلودگی نوری (مقیاس بورتل)" else "Light Pollution (Bortle Scale)",
-                    currentValueLabel = bortleLabel,
-                    icon = Icons.Default.Brightness6,
-                    isExpanded = isBortleExpanded,
-                    onToggle = { isBortleExpanded = !isBortleExpanded },
-                    testTag = "settings_section_bortle"
-                ) {
-                    // Bortle Slider Row
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isFa) "کلاس انتخابی بورتل:" else "Selected Bortle Class:",
-                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
-                                color = RedTheme.colors.textPrimary
-                            )
-                            val activeInfo = BORTLE_CLASSES.getOrNull(uiState.bortleClass - 1)
-                            Text(
-                                text = "${uiState.bortleClass} - ${if (isFa) activeInfo?.nameFa ?: "" else activeInfo?.nameEn ?: ""}",
-                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                color = RedTheme.colors.accentRed
-                            )
-                        }
-
-                        RedSlider(
-                            value = uiState.bortleClass.toFloat(),
-                            onValueChange = { viewModel.setBortleClass(it.toInt()) },
-                            valueRange = 1f..9f,
-                            steps = 7,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("bortle_class_slider")
+                    IconButton(
+                        onClick = dismiss,
+                        modifier = Modifier.size(48.dp).testTag("settings_close_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = stringResource(R.string.close),
+                            tint = RedTheme.colors.textSecondary,
                         )
                     }
+                }
 
-                    HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
+                SettingsCategoryTabs(
+                    selected = selectedPage,
+                    uiStyle = uiState.uiStyle,
+                    onSelect = { selectedPage = it },
+                )
 
-                    // Concise Bortle Scale Identification Guide
-                    Text(
-                        text = if (isFa) "راهنمای تطبیق وضعیت آسمان شب:" else "Sky Appearance Identification Guide:",
-                        style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                        color = RedTheme.colors.textSecondary
-                    )
-
+                AnimatedContent(
+                    targetState = selectedPage,
+                    modifier = Modifier.weight(1f),
+                    transitionSpec = {
+                        (fadeIn(tween(180)) + slideInVertically(tween(180)) { it / 18 }) togetherWith
+                            (fadeOut(tween(120)) + slideOutVertically(tween(120)) { -it / 24 })
+                    },
+                    label = "settings-pages",
+                ) { page ->
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(RedSpacing.sm + 6.dp)
                     ) {
-                        BORTLE_CLASSES.forEach { info ->
-                            val isSelected = uiState.bortleClass == info.classNumber
-                            RedSurface(
-                                shape = squircleShape(RedCornerRadius.window),
-                                color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
-                                border = BorderStroke(
-                                    0.5.dp,
-                                    if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border.copy(alpha = 0.2f)
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { viewModel.setBortleClass(info.classNumber) },
-                                elevation = RedElevation.none,
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.Top,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Text(
+                            text = settingsPageTitle(page, isFa),
+                            style = RedTypographyTokens.sectionTitle.copy(fontSize = 19.sp),
+                            color = RedTheme.colors.textPrimary,
+                        )
+                        when (page) {
+                            SettingsPage.GENERAL -> {
+                                // 0. UI Style Dropdown Section (Default UI vs Spatial UI)
+                                ExpandableSettingsSection(
+                                    title = stringResource(R.string.ui_style_title),
+                                    currentValueLabel = uiStyleLabel,
+                                    icon = Icons.Outlined.Widgets,
+                                    isExpanded = isUiStyleExpanded,
+                                    onToggle = { isUiStyleExpanded = !isUiStyleExpanded },
+                                    testTag = "settings_section_ui_style"
                                 ) {
-                                    // Class Number Badge
-                                    Surface(
-                                        shape = squircleShape(4.dp),
-                                        color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
-                                        modifier = Modifier.padding(top = 1.dp)
-                                    ) {
-                                        Text(
-                                            text = "${info.classNumber}",
-                                            style = RedTypographyTokens.caption.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 10.sp
-                                            ),
-                                            color = if (isSelected) Color.White else RedTheme.colors.textSecondary,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                        )
-                                    }
-
-                                    // Name & Concise Description
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = if (isFa) info.nameFa else info.nameEn,
-                                            style = RedTypographyTokens.caption.copy(
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
-                                            ),
-                                            color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.textPrimary
-                                        )
-                                        Text(
-                                            text = if (isFa) info.descFa else info.descEn,
-                                            style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
-                                            color = RedTheme.colors.textSecondary,
-                                            lineHeight = 13.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 7. Developer Credit Card
-                RedSurface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = RedSpacing.xs)
-                        .testTag("developer_credit_card"),
-                    shape = squircleShape(RedCornerRadius.lg),
-                    color = RedTheme.colors.surfaceGrouped
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(RedSpacing.md),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f)),
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                SafeAppLogo(
-                                    modifier = Modifier.size(30.dp),
-                                    cornerRadius = 8.dp
-                                )
-                            }
-                        }
-
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = if (isFa) "توسعه‌دهنده: " else "Developed by ",
-                                    style = RedTypographyTokens.caption,
-                                    color = RedTheme.colors.textSecondary
-                                )
-                                Text(
-                                    text = "علی جعفری",
-                                    style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.Bold),
-                                    color = RedTheme.colors.textPrimary
-                                )
-                            }
-
-                            Text(
-                                text = "Ali Jafari • ZIG Astronomy Engine",
-                                style = RedTypographyTokens.caption,
-                                color = RedTheme.colors.textSecondary
-                            )
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            // Telegram badge
-                            val intentContext = context
-                            Surface(
-                                shape = squircleShape(RedCornerRadius.xs),
-                                color = RedTheme.colors.accentRed.copy(alpha = 0.1f),
-                                border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f)),
-                                modifier = Modifier.clickable {
-                                    try {
-                                        val tgIntent = android.content.Intent(
-                                            android.content.Intent.ACTION_VIEW,
-                                            android.net.Uri.parse("https://t.me/EdisonWasAThief")
-                                        )
-                                        intentContext.startActivity(tgIntent)
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                    }
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Send,
-                                        contentDescription = null,
-                                        tint = RedTheme.colors.accentRed,
-                                        modifier = Modifier.size(13.dp)
+                                    SettingsOptionRow(
+                                        title = stringResource(R.string.ui_style_default),
+                                        subtitle = stringResource(R.string.ui_style_default_desc),
+                                        isSelected = uiState.uiStyle == AppUiStyle.DEFAULT,
+                                        onClick = { viewModel.setUiStyle(AppUiStyle.DEFAULT) },
+                                        modifier = Modifier.testTag("settings_ui_style_default")
                                     )
+                                    SettingsOptionRow(
+                                        title = stringResource(R.string.ui_style_spatial),
+                                        subtitle = stringResource(R.string.ui_style_spatial_desc),
+                                        isSelected = uiState.uiStyle == AppUiStyle.SPATIAL,
+                                        onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
+                                        modifier = Modifier.testTag("settings_ui_style_spatial")
+                                    )
+                                    SettingsOptionRow(
+                                        title = stringResource(R.string.ui_style_aether),
+                                        subtitle = stringResource(R.string.ui_style_aether_desc),
+                                        isSelected = uiState.uiStyle == AppUiStyle.AETHER,
+                                        onClick = { viewModel.setUiStyle(AppUiStyle.AETHER) },
+                                        modifier = Modifier.testTag("settings_ui_style_aether")
+                                    )
+                                }
+                                // 1. Language Dropdown Section
+                                ExpandableSettingsSection(
+                                    title = stringResource(R.string.application_language),
+                                    currentValueLabel = languageLabel,
+                                    icon = Icons.Default.Language,
+                                    isExpanded = isLanguageExpanded,
+                                    onToggle = { isLanguageExpanded = !isLanguageExpanded },
+                                    testTag = "settings_section_language"
+                                ) {
+                                    SettingsOptionRow(
+                                        title = stringResource(R.string.language_persian),
+                                        subtitle = "فارسی (Persian)",
+                                        isSelected = uiState.language == AppLanguage.PERSIAN,
+                                        onClick = { viewModel.setLanguage(AppLanguage.PERSIAN) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = stringResource(R.string.language_english),
+                                        subtitle = "English (US)",
+                                        isSelected = uiState.language == AppLanguage.ENGLISH,
+                                        onClick = { viewModel.setLanguage(AppLanguage.ENGLISH) }
+                                    )
+                                }
+                                // 2. Calendar System Dropdown Section
+                                ExpandableSettingsSection(
+                                    title = stringResource(R.string.calendar_system),
+                                    currentValueLabel = calendarLabel,
+                                    icon = Icons.Default.CalendarToday,
+                                    isExpanded = isCalendarExpanded,
+                                    onToggle = { isCalendarExpanded = !isCalendarExpanded },
+                                    testTag = "settings_section_calendar"
+                                ) {
+                                    SettingsOptionRow(
+                                        title = stringResource(R.string.calendar_solar_hijri),
+                                        subtitle = if (isFa) "تقویم خورشیدی رسمی ایران" else "Solar Hijri Calendar",
+                                        isSelected = uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI,
+                                        onClick = { viewModel.setCalendarSystem(CalendarSystem.SOLAR_HIJRI) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = stringResource(R.string.calendar_gregorian),
+                                        subtitle = if (isFa) "تقویم بین‌المللی میلادی" else "Gregorian International Calendar",
+                                        isSelected = uiState.calendarSystem == CalendarSystem.GREGORIAN,
+                                        onClick = { viewModel.setCalendarSystem(CalendarSystem.GREGORIAN) }
+                                    )
+                                }
+                            }
+                            SettingsPage.APPEARANCE -> {
+                                // 3. App Theme Dropdown Section
+                                ExpandableSettingsSection(
+                                    title = if (isFa) "پوسته برنامه" else "App Theme",
+                                    currentValueLabel = appThemeLabel,
+                                    icon = Icons.Default.Palette,
+                                    isExpanded = isAppThemeExpanded,
+                                    onToggle = { isAppThemeExpanded = !isAppThemeExpanded },
+                                    testTag = "settings_section_app_theme"
+                                ) {
+                                    SettingsOptionRow(
+                                        title = if (isFa) "روشن" else "Light",
+                                        isSelected = uiState.themeMode == ThemeMode.LIGHT,
+                                        onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = if (isFa) "تاریک (OLED)" else "Dark (OLED)",
+                                        isSelected = uiState.themeMode == ThemeMode.DARK,
+                                        onClick = { viewModel.setThemeMode(ThemeMode.DARK) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = stringResource(R.string.theme_wine),
+                                        subtitle = stringResource(R.string.theme_wine_desc),
+                                        isSelected = uiState.themeMode == ThemeMode.WINE,
+                                        onClick = { viewModel.setThemeMode(ThemeMode.WINE) },
+                                        modifier = Modifier.testTag("settings_theme_wine")
+                                    )
+                                }
+                            }
+                            SettingsPage.SKY -> {
+                                // 4. Sky Canvas Theme Dropdown Section
+                                ExpandableSettingsSection(
+                                    title = if (isFa) "سبک هنری آسمان (RMAE)" else "Sky Canvas Theme",
+                                    currentValueLabel = skyCanvasThemeLabel,
+                                    icon = Icons.Default.AutoAwesome,
+                                    isExpanded = isSkyCanvasThemeExpanded,
+                                    onToggle = { isSkyCanvasThemeExpanded = !isSkyCanvasThemeExpanded },
+                                    testTag = "settings_section_sky_theme"
+                                ) {
+                                    SettingsOptionRow(
+                                        title = if (isFa) "آسمان واقعی (Real Sky)" else "Real Sky",
+                                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.REAL_SKY,
+                                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.REAL_SKY) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = if (isFa) "آسمان جوی (Atmospheric)" else "Atmospheric Sky",
+                                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY,
+                                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.ATMOSPHERIC_SKY) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = if (isFa) "تک‌رنگ علمی (Monochrome)" else "Monochrome Scientific",
+                                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC,
+                                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME_SCIENTIFIC) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = if (isFa) "آبرنگ کودکانه (Watercolor)" else "Kids Watercolor",
+                                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.KIDS_WATERCOLOR,
+                                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.KIDS_WATERCOLOR) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = if (isFa) "رصدخانه (Observatory)" else "Observatory",
+                                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY,
+                                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.OBSERVATORY) }
+                                    )
+                                    SettingsOptionRow(
+                                        title = if (isFa) "دیوراما کاغذ برجسته (Papercraft)" else "Papercraft Diorama",
+                                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.PAPERCRAFT_DIORAMA,
+                                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.PAPERCRAFT_DIORAMA) }
+                                    )
+                                }
+                                // 5. App Backdrop Section. One live option, default OFF.
+                                ExpandableSettingsSection(
+                                    title = stringResource(R.string.app_backdrop_title),
+                                    currentValueLabel = liveSkyStatusLabel,
+                                    icon = Icons.Outlined.NightsStay,
+                                    isExpanded = isAppBackdropExpanded,
+                                    onToggle = { isAppBackdropExpanded = !isAppBackdropExpanded },
+                                    statusColor = if (uiState.appBackdropMode != AppBackdropMode.NONE) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                                    testTag = "settings_section_app_backdrop"
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                                        ) {
+                                            FilterChip(
+                                                selected = uiState.appBackdropMode == AppBackdropMode.NONE,
+                                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NONE) },
+                                                label = { Text(text = if (isFa) "خاموش" else "Off", fontSize = 11.sp) },
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                                    selectedLabelColor = Color.White
+                                                ),
+                                                modifier = Modifier.testTag("settings_backdrop_off")
+                                            )
+                                            FilterChip(
+                                                selected = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
+                                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.LIVE_SKY) },
+                                                label = { Text(text = stringResource(R.string.live_sky_setting), fontSize = 11.sp) },
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                                    selectedLabelColor = Color.White
+                                                ),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .testTag("settings_live_sky_switch")
+                                            )
+                                            FilterChip(
+                                                selected = uiState.appBackdropMode == AppBackdropMode.NGC_1929,
+                                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NGC_1929) },
+                                                label = { Text(text = stringResource(R.string.backdrop_ngc1929_setting), fontSize = 11.sp) },
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                                    selectedLabelColor = Color.White
+                                                ),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .testTag("settings_backdrop_ngc1929")
+                                            )
+                                        }
+                                        FilterChip(
+                                            selected = uiState.appBackdropMode == AppBackdropMode.CEPHEUS,
+                                            onClick = { viewModel.setAppBackdropMode(AppBackdropMode.CEPHEUS) },
+                                            label = { Text(text = stringResource(R.string.backdrop_cepheus_setting), fontSize = 11.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = RedTheme.colors.accentRed,
+                                                selectedLabelColor = Color.White
+                                            ),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("settings_backdrop_cepheus")
+                                        )
+                                        Text(
+                                            text = when (uiState.appBackdropMode) {
+                                                AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_desc)
+                                                AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_desc)
+                                                AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_desc)
+                                                AppBackdropMode.NONE -> stringResource(R.string.backdrop_off_desc)
+                                            },
+                                            style = RedTypographyTokens.caption,
+                                            color = RedTheme.colors.textSecondary
+                                        )
+                                    }
+                                }
+                                // 6. Bortle Light-Pollution Dedicated Section & Guide
+                                ExpandableSettingsSection(
+                                    title = if (isFa) "آلودگی نوری (مقیاس بورتل)" else "Light Pollution (Bortle Scale)",
+                                    currentValueLabel = bortleLabel,
+                                    icon = Icons.Default.Brightness6,
+                                    isExpanded = isBortleExpanded,
+                                    onToggle = { isBortleExpanded = !isBortleExpanded },
+                                    testTag = "settings_section_bortle"
+                                ) {
+                                    // Bortle Slider Row
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (isFa) "کلاس انتخابی بورتل:" else "Selected Bortle Class:",
+                                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                                color = RedTheme.colors.textPrimary
+                                            )
+                                            val activeInfo = BORTLE_CLASSES.getOrNull(uiState.bortleClass - 1)
+                                            Text(
+                                                text = "${uiState.bortleClass} - ${if (isFa) activeInfo?.nameFa ?: "" else activeInfo?.nameEn ?: ""}",
+                                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                                color = RedTheme.colors.accentRed
+                                            )
+                                        }
+
+                                        RedSlider(
+                                            value = uiState.bortleClass.toFloat(),
+                                            onValueChange = { viewModel.setBortleClass(it.toInt()) },
+                                            valueRange = 1f..9f,
+                                            steps = 7,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("bortle_class_slider")
+                                        )
+                                    }
+
+                                    HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                                    // Concise Bortle Scale Identification Guide
                                     Text(
-                                        text = "@EdisonWasAThief",
-                                        style = RedTypographyTokens.caption.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = RedTheme.colors.accentRed
-                                        )
+                                        text = if (isFa) "راهنمای تطبیق وضعیت آسمان شب:" else "Sky Appearance Identification Guide:",
+                                        style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                        color = RedTheme.colors.textSecondary
                                     )
+
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        BORTLE_CLASSES.forEach { info ->
+                                            val isSelected = uiState.bortleClass == info.classNumber
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(squircleShape(RedCornerRadius.window))
+                                                    .background(
+                                                        if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.10f)
+                                                        else Color.Transparent
+                                                    )
+                                                    .clickable { viewModel.setBortleClass(info.classNumber) }
+                                                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.Top,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Surface(
+                                                    shape = squircleShape(4.dp),
+                                                    color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
+                                                    modifier = Modifier.padding(top = 1.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "${info.classNumber}",
+                                                        style = RedTypographyTokens.caption.copy(
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 10.sp
+                                                        ),
+                                                        color = if (isSelected) Color.White else RedTheme.colors.textSecondary,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = if (isFa) info.nameFa else info.nameEn,
+                                                        style = RedTypographyTokens.caption.copy(
+                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                                                        ),
+                                                        color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.textPrimary
+                                                    )
+                                                    Text(
+                                                        text = if (isFa) info.descFa else info.descEn,
+                                                        style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
+                                                        color = RedTheme.colors.textSecondary,
+                                                        lineHeight = 13.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            SettingsPage.ABOUT -> {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().testTag("settings_section_about"),
+                                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(18.dp),
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = RedTheme.colors.accentRed.copy(alpha = 0.10f),
+                                            modifier = Modifier.size(72.dp),
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                SafeAppLogo(modifier = Modifier.size(52.dp), cornerRadius = 14.dp)
+                                            }
+                                        }
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(
+                                                text = stringResource(R.string.app_name),
+                                                style = RedTypographyTokens.sectionHeading.copy(fontSize = 25.sp),
+                                                color = RedTheme.colors.textPrimary,
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.app_subtitle),
+                                                style = RedTypographyTokens.bodySecondary,
+                                                color = RedTheme.colors.textSecondary,
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.settings_about_version, BuildConfig.VERSION_NAME),
+                                                style = RedTypographyTokens.caption,
+                                                color = RedTheme.colors.textTertiary,
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = stringResource(R.string.settings_about_description),
+                                        style = RedTypographyTokens.bodyPrimary,
+                                        color = RedTheme.colors.textSecondary,
+                                        lineHeight = 24.sp,
+                                    )
+                                    HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.7f))
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            text = stringResource(R.string.settings_about_creator),
+                                            style = RedTypographyTokens.caption,
+                                            color = RedTheme.colors.textSecondary,
+                                        )
+                                        Text(
+                                            text = if (isFa) "علی جعفری" else "Ali Jafari",
+                                            style = RedTypographyTokens.sectionTitle,
+                                            color = RedTheme.colors.textPrimary,
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(squircleShape(RedCornerRadius.md))
+                                            .background(RedTheme.colors.accentRed.copy(alpha = 0.08f))
+                                            .clickable {
+                                                runCatching {
+                                                    context.startActivity(
+                                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/EdisonWasAThief"))
+                                                    )
+                                                }
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                                            .testTag("developer_credit_card"),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Send,
+                                            contentDescription = null,
+                                            tint = RedTheme.colors.accentRed,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = stringResource(R.string.settings_about_contact),
+                                                style = RedTypographyTokens.caption,
+                                                color = RedTheme.colors.textSecondary,
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.telegram_id),
+                                                style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.SemiBold),
+                                                color = RedTheme.colors.accentRed,
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                shape = squircleShape(RedCornerRadius.md),
-                colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed)
-            ) {
-                Text(text = stringResource(R.string.ok), color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
-    )
+    }
 }
 
 /**

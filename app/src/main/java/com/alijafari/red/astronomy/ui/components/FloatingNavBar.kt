@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
@@ -34,13 +35,19 @@ import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
-/**
- * The dock is three quarters of the available width and three quarters of the old height, on the
- * leading side — the right in Persian, the left in English — so the settings bubble has the space it
- * leaves instead of the bar spanning the whole screen.
- */
+/** Shared proportions and touch geometry for the centered navigation + settings cluster. */
 const val BOTTOM_NAV_WIDTH_FRACTION = 0.75f
-val BOTTOM_NAV_HEIGHT: Dp = 48.dp
+val BOTTOM_NAV_MAX_WIDTH: Dp = 420.dp
+val BOTTOM_NAV_HEIGHT: Dp = 56.dp
+val BOTTOM_SETTINGS_SIZE: Dp = 56.dp
+val BOTTOM_NAV_SETTINGS_GAP: Dp = 10.dp
+val BOTTOM_CONTROLS_HEIGHT: Dp = maxOf(BOTTOM_NAV_HEIGHT, BOTTOM_SETTINGS_SIZE)
+
+/** Responsive dock width that leaves enough room for the round settings control and gap. */
+internal fun bottomNavWidth(availableWidth: Dp): Dp =
+    (availableWidth * BOTTOM_NAV_WIDTH_FRACTION)
+        .coerceAtMost(BOTTOM_NAV_MAX_WIDTH)
+        .coerceAtMost((availableWidth - BOTTOM_SETTINGS_SIZE - BOTTOM_NAV_SETTINGS_GAP).coerceAtLeast(0.dp))
 
 /** The one silhouette every skin's dock wears: a squircle pill, ends fully rounded. */
 internal fun bottomNavShape() = squircleShape(RedCornerRadius.pill)
@@ -128,7 +135,7 @@ fun FloatingBottomBar(
                                 imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
                                 contentDescription = stringResource(item.titleRes),
                                 tint = activeColor,
-                                modifier = Modifier.size(RedIconSize.sm)
+                                modifier = Modifier.size(20.dp)
                             )
 
                             Spacer(modifier = Modifier.height(2.dp))
@@ -149,21 +156,17 @@ fun FloatingBottomBar(
     }
 }
 
-/**
- * Settings, in the space the dock leaves on the trailing side. It wears the dock's own material and
- * silhouette so the pair reads as one piece of chrome, and it appears wherever the dock appears.
- */
+/** Circular settings control paired closely with the centered navigation capsule. */
 @Composable
 fun FloatingSettingsBubble(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = bottomNavShape()
     RedSurface(
         modifier = modifier
-            .size(BOTTOM_NAV_HEIGHT)
+            .size(BOTTOM_SETTINGS_SIZE)
             .testTag("bottom_settings_button"),
-        shape = shape,
+        shape = CircleShape,
         color = RedTheme.colors.surfaceElevated,
         border = BorderStroke(1.dp, RedTheme.colors.border),
         elevation = RedElevation.floating,
@@ -174,7 +177,7 @@ fun FloatingSettingsBubble(
                 imageVector = Icons.Outlined.Settings,
                 contentDescription = stringResource(R.string.settings),
                 tint = RedTheme.colors.textPrimary,
-                modifier = Modifier.size(RedIconSize.sm)
+                modifier = Modifier.size(RedIconSize.md)
             )
         }
     }

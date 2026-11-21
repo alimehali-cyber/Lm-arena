@@ -100,7 +100,7 @@ class SpatialUiTest {
         val spatialSettings = source("com/alijafari/red/astronomy/ui/spatial/SpatialSettingsModal.kt")
         val aetherSettings = source("com/alijafari/red/astronomy/ui/aether/AetherSettingsModal.kt")
 
-        for (src in listOf(defaultSettings, spatialSettings, aetherSettings)) {
+        for (src in listOf(defaultSettings)) {
             assertTrue(src.contains("settings_section_ui_style"))
             assertTrue(src.contains("settings_ui_style_default"))
             assertTrue(src.contains("settings_ui_style_spatial"))
@@ -110,7 +110,14 @@ class SpatialUiTest {
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.AETHER)"))
             assertTrue(src.contains("settings_theme_wine"))
             assertTrue(src.contains("viewModel.setThemeMode(ThemeMode.WINE)"))
+            assertTrue(src.contains("SettingsDialogMotion(sourceBounds = sourceBounds"))
+            assertTrue(src.contains("SettingsPage.ABOUT"))
+            assertTrue(src.contains("settings_about_description"))
         }
+        assertTrue(spatialSettings.contains("SettingsDialog("))
+        assertTrue(spatialSettings.contains("sourceBounds = sourceBounds"))
+        assertTrue(aetherSettings.contains("SettingsDialog("))
+        assertTrue(aetherSettings.contains("sourceBounds = sourceBounds"))
     }
 
     @Test
