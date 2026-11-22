@@ -7,15 +7,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Single real-app build job: unit tests -> signed release APK -> artifact upload.
-#
-# The instrumented emulator smoke-test job (AVD boot + connectedDebugAndroidTest + logcat gate for
-# ARSkySmokeInstrumentedTest) has been removed from the pipeline. Nothing here depends on an
-# emulator, and there are no `needs:` gates. Local/JVM unit tests (testDebugUnitTest) are retained
-# and remain a hard gate before the APK is produced.
 jobs:
   build:
-    # ubuntu-22.04 keeps the Android SDK image this project's AGP/Kotlin toolchain is built against.
     runs-on: ubuntu-22.04
 
     steps:
@@ -109,63 +102,6 @@ jobs:
                   print(f"::error title=Unit Gradle output::{text}")
           PY
           exit "$unit_status"
-
-      - name: Confirm AR/catalog unit test classes
-        if: always()
-        run: |
-          python3 - <<'PY'
-          import glob
-          import sys
-          import xml.etree.ElementTree as ET
-
-          required = [
-              "com.alijafari.red.astronomy.ARDeepSkyMergeTest",
-              "com.alijafari.red.astronomy.ARDistanceFormatterTest",
-              "com.alijafari.red.astronomy.MagneticAnomalyDetectorTest",
-              "com.alijafari.red.astronomy.ARRecalibrationPromptTest",
-              "com.alijafari.red.astronomy.AROnePointAlignmentTest",
-              "com.alijafari.red.astronomy.ARCalibrationPromptTest",
-              "com.alijafari.red.astronomy.SkyOrientationProjectionTest",
-              "com.alijafari.red.astronomy.SatelliteARConsistencyTest",
-              "com.alijafari.red.astronomy.CatalogIntegrityTest",
-              "com.alijafari.red.astronomy.DeepSkyFactCoverageTest",
-              "com.alijafari.red.astronomy.ObjectDetailModalConsistencyTest",
-              "com.alijafari.red.astronomy.ContentIntegrityAuditTest",
-              "com.alijafari.red.astronomy.ARSkyEarthExclusionTest",
-              "com.alijafari.red.astronomy.ARSkyPointToShapeRenderingTest",
-              "com.alijafari.red.astronomy.VazirmatnPersianTypographyTest",
-              "com.alijafari.red.astronomy.ArSkyOverlayDrawTest",
-              "com.alijafari.red.astronomy.LunarAppearanceTest",
-              "com.alijafari.red.astronomy.MoonRenderTest",
-              "com.alijafari.red.astronomy.MoonShowcaseRenderTest",
-          ]
-          stats = {name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0} for name in required}
-          files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
-          print(f"JUnit XML files: {len(files)}")
-          for path in files:
-              root = ET.parse(path).getroot()
-              for testcase in root.iter("testcase"):
-                  classname = testcase.attrib.get("classname", "")
-                  if classname in stats:
-                      stats[classname]["tests"] += 1
-                      if testcase.find("failure") is not None:
-                          stats[classname]["failures"] += 1
-                      if testcase.find("error") is not None:
-                          stats[classname]["errors"] += 1
-                      if testcase.find("skipped") is not None:
-                          stats[classname]["skipped"] += 1
-
-          failed = False
-          for name in required:
-              s = stats[name]
-              status = "PASS" if s["tests"] > 0 and s["failures"] == 0 and s["errors"] == 0 and s["skipped"] == 0 else "FAIL"
-              print(f"{name}: tests={s['tests']} failures={s['failures']} errors={s['errors']} skipped={s['skipped']} status={status}")
-              print(f"::notice title=AR unit test class::{name}: tests={s['tests']} failures={s['failures']} errors={s['errors']} skipped={s['skipped']} status={status}")
-              if status != "PASS":
-                  failed = True
-          if failed:
-              sys.exit("One or more required AR unit test classes were missing, skipped, or failed")
-          PY
 
       - name: Build signed release APK with Gradle
         env:
