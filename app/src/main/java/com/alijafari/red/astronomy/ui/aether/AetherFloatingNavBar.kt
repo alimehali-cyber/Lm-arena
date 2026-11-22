@@ -83,7 +83,7 @@ fun AetherFloatingNavBar(
                 .background(palette.frostedGlassFill)
                 .specularRimBorder(shape = shape)
         ) {
-            FluidNavLensLayer(modifier = Modifier.fillMaxSize()) {
+            FluidNavLensLayer(host = host, modifier = Modifier.fillMaxSize()) {
                 FluidNavItemsRow(
                     host = host,
                     selectedIndex = selectedTab,

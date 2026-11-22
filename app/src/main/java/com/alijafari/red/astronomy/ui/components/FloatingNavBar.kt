@@ -77,7 +77,7 @@ fun FloatingBottomBar(
             border = BorderStroke(1.dp, RedTheme.colors.border),
             elevation = RedElevation.floating,
         ) {
-            FluidNavLensLayer(modifier = Modifier.fillMaxSize()) {
+            FluidNavLensLayer(host = host, modifier = Modifier.fillMaxSize()) {
                 FluidNavItemsRow(
                     host = host,
                     selectedIndex = selectedTab,

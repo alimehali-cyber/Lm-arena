@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -291,7 +290,7 @@ private const val K_LENS = 160f
 private const val ZETA_LENS = 0.55f
 private const val FLOW_DELAY_MS = 210L
 
-private class FluidLensState {
+internal class FluidLensState {
     var left by mutableFloatStateOf(0f)
     var right by mutableFloatStateOf(0f)
     var vLeft by mutableFloatStateOf(0f)
@@ -320,8 +319,10 @@ class FluidNavLensHost internal constructor(private val style: FluidDyeStyle) {
 
     internal suspend fun flowTo(cell: Pair<Float, Float>) {
         if (!lens.initialized) {
-            lens.left = lens.tLeft = cell.first
-            lens.right = lens.tRight = cell.second
+            lens.tLeft = cell.first
+            lens.left = cell.first
+            lens.tRight = cell.second
+            lens.right = cell.second
             lens.initialized = true
             return
         }
@@ -398,8 +399,10 @@ fun rememberFluidNavLensHost(style: FluidDyeStyle, selectedIndex: Int): FluidNav
                 if (!host.lens.initialized) {
                     val c = host.cellGeometry[selectedIndexState.value]
                     if (c != null) {
-                        host.lens.left = host.lens.tLeft = c.first
-                        host.lens.right = host.lens.tRight = c.second
+                        host.lens.tLeft = c.first
+                        host.lens.left = c.first
+                        host.lens.tRight = c.second
+                        host.lens.right = c.second
                         host.lens.initialized = true
                     }
                 }

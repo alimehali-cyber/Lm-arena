@@ -113,7 +113,7 @@ fun SpatialFloatingNavBar(
                 }
                 .border(BorderStroke(1.dp, rimBrush), dockShape)
         ) {
-            FluidNavLensLayer(modifier = Modifier.fillMaxSize()) {
+            FluidNavLensLayer(host = host, modifier = Modifier.fillMaxSize()) {
                 FluidNavItemsRow(
                     host = host,
                     selectedIndex = selectedTab,
