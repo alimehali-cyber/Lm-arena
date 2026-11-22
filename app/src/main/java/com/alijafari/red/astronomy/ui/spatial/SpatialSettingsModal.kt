@@ -143,7 +143,7 @@ fun SpatialSettingsModal(
             title = stringResource(R.string.app_settings),
             subtitle = if (isFa) "شیشه فضایی • ZIG" else "Spatial Glass • ZIG",
             onClose = onDismiss
-        ) {
+        ) settingsContent@ {
             Box(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier
@@ -451,7 +451,7 @@ fun SpatialSettingsModal(
                 }
 
                 // The About page slides over the menu and slides back away.
-                AnimatedVisibility(
+                this@settingsContent.AnimatedVisibility(
                     visible = showAbout,
                     modifier = Modifier.fillMaxSize(),
                     enter = slideInHorizontally(

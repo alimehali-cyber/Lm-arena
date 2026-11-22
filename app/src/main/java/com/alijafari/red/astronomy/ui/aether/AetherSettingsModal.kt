@@ -148,7 +148,7 @@ fun AetherSettingsModal(
             title = stringResource(R.string.app_settings),
             subtitle = if (isFa) "سیستم تله‌متری اتر • اپتیکال" else "Aether Telemetry • Spatial Lens",
             onClose = onDismiss
-        ) {
+        ) settingsContent@ {
             Box(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier
@@ -456,7 +456,7 @@ fun AetherSettingsModal(
                 }
 
                 // The About page slides over the menu and slides back away.
-                AnimatedVisibility(
+                this@settingsContent.AnimatedVisibility(
                     visible = showAbout,
                     modifier = Modifier.fillMaxSize(),
                     enter = slideInHorizontally(

@@ -145,7 +145,7 @@ fun SettingsDialog(
             title = stringResource(R.string.app_settings),
             subtitle = if (isFa) "همراه آفلاین آسمان‌شناسی • ZIG" else "Offline Astronomy Companion • ZIG",
             onClose = onDismiss
-        ) {
+        ) settingsContent@ {
             Box(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier
@@ -453,7 +453,7 @@ fun SettingsDialog(
                 }
 
                 // The About page slides over the menu and slides back away.
-                AnimatedVisibility(
+                this@settingsContent.AnimatedVisibility(
                     visible = showAbout,
                     modifier = Modifier.fillMaxSize(),
                     enter = slideInHorizontally(
