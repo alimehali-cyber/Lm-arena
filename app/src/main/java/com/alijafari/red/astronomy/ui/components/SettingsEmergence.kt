@@ -81,6 +81,7 @@ fun SettingsEmergenceDialog(
             dismissOnClickOutside = false
         )
     ) {
+        HideStatusBar()
         Box(
             modifier = Modifier
                 .fillMaxSize()

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.GpsNotFixed
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.alijafari.red.astronomy.ui.components.HideStatusBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
@@ -97,6 +98,7 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
         contentColor = c.onSurface,
         modifier = Modifier.testTag("inspector_sheet")
     ) {
+        HideStatusBar()
         // §16 ROOT CAUSE FIX. This was a plain Column with no scroll modifier, so everything past
         // the fold was simply unreachable: the content was measured, laid out, and clipped by the
         // sheet. It now scrolls, keeps clear of the keyboard (imePadding) and of the system

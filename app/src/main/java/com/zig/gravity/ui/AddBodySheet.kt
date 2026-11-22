@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.alijafari.red.astronomy.ui.components.HideStatusBar
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -66,6 +67,7 @@ fun AddBodySheet(
         contentColor = c.onSurface,
         modifier = Modifier.testTag("add_body_sheet")
     ) {
+        HideStatusBar()
         // The catalogue grid scrolls on its own, but the header above it and the scale note below
         // it can still be pushed off a short screen or a large font scale. The outer scroller
         // guarantees the last line is reachable; it only engages when the content really overflows.

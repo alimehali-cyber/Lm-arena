@@ -59,7 +59,6 @@ fun objectDetailSectionPlan(type: ObjectType, factCount: Int): List<String> = bu
     if (factCount > 0) add("facts_card")
     add("description")
     add("coordinates")
-    add("observation_log")
 }
 
 fun objectDetailFactsHeader(count: Int, isFa: Boolean): String =
@@ -309,12 +308,9 @@ fun ObjectDetailModal(
         }
     }
 
-    var showAddLogDialog by remember { mutableStateOf(false) }
     var showNotificationSheet by remember { mutableStateOf(false) }
     var showScientificCoords by remember { mutableStateOf(false) }
 
-    var notesInput by remember { mutableStateOf("") }
-    var ratingInput by remember { mutableStateOf(5) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -322,6 +318,7 @@ fun ObjectDetailModal(
         containerColor = MaterialTheme.colorScheme.background,
         modifier = Modifier.testTag("object_detail_modal")
     ) {
+        HideStatusBar()
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
@@ -761,22 +758,6 @@ fun ObjectDetailModal(
                 }
             }
 
-            // Observation Log Button & Spacing
-            item {
-                OutlinedButton(
-                    onClick = { showAddLogDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("add_log_button"),
-                    shape = squircleShape(14.dp)
-                ) {
-                    Icon(Icons.Default.EditNote, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = if (isFa) "ثبت در دفترچه رصد" else "Add to Observation Log")
-                }
-            }
-
             item {
                 Spacer(modifier = Modifier.height(32.dp))
             }
@@ -788,6 +769,7 @@ fun ObjectDetailModal(
         AlertDialog(
             onDismissRequest = { showNotificationSheet = false },
             title = {
+                HideStatusBar()
                 Text(text = if (isFa) "تنظیم هشدار رصد ${celestialObj.nameFa}" else "Set Observation Alert for ${celestialObj.nameEn}")
             },
             text = {
@@ -832,62 +814,6 @@ fun ObjectDetailModal(
         )
     }
 
-    // Add Observation Dialog
-    if (showAddLogDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddLogDialog = false },
-            title = {
-                Text(text = if (isFa) "ثبت رصد جدید" else "New Observation Entry")
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = if (isFa) "یادداشت رصد برای ${celestialObj.nameFa}:" else "Notes for ${celestialObj.nameEn}:",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    OutlinedTextField(
-                        textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
-                        value = notesInput,
-                        onValueChange = { notesInput = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(text = if (isFa) "شرایط جوی، تجهیزات رصدی..." else "Weather, telescope...") }
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(text = if (isFa) "امتیاز رصد:" else "Rating:")
-                        for (star in 1..5) {
-                            IconButton(onClick = { ratingInput = star }) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = "Star $star",
-                                    tint = if (star <= ratingInput) AccentPrimary else Color.Gray
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.addObservationLog(notesInput, ratingInput)
-                        showAddLogDialog = false
-                    }
-                ) {
-                    Text(text = if (isFa) "ذخیره" else "Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddLogDialog = false }) {
-                    Text(text = if (isFa) "انصراف" else "Cancel")
-                }
-            }
-        )
-    }
 }
 
 @Composable

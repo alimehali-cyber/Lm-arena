@@ -95,6 +95,7 @@ fun MoonDetailWindow(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
+        HideStatusBar()
         Box(modifier = Modifier.fillMaxSize()) {
             // Scrim, kept a sibling of the window so taps inside it are never swallowed.
             Box(

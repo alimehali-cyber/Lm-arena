@@ -147,7 +147,7 @@ private enum class AetherTonightFilter {
  * Aether Telemetry UI — Spatial Telemetry Dashboard Home Screen:
  *
  * - Full-bleed edge-to-edge [HeroSkyCanvas] (`SkyCanvasPresentation.SCENE`) with floating
- *   circular optical icon lenses and elevated rim-lit Location & 360° Sky capsules.
+ *   an elevated rim-lit Location capsule and the Search lens with the icon-only 360° capsule.
  * - Frameless Frosted Spatial "What's Up Tonight" telemetry deck directly beneath the sky canvas.
  * - Clear Frameless Crimson Jewel Hero Card (`36.dp` squircle `#1C020D -> #5E052A -> #9E0B45`,
  *   1.dp specular rim, completely clear surface).
@@ -345,7 +345,7 @@ fun AetherHomeScreen(
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val sceneHeight = (maxHeight * 0.49f).coerceIn(320.dp, 460.dp)
-        // Shifted 32.dp (~5 mm) upwards from 56.dp -> 24.dp so the Location & 360° Sky capsules
+        // Shifted 32.dp (~5 mm) upwards from 56.dp -> 24.dp so the Location & fullscreen capsules
         // hug the lower edge of the sky canvas right above What's Up Tonight.
         val controlsBottom = 24.dp
 
@@ -642,33 +642,7 @@ private fun AetherSkyHeroSection(
                 )
         )
 
-        // FLOATING TOP OPTICAL ICON LENSES
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = RedSpacing.lg, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AetherOpticalIconLens(
-                icon = Icons.Outlined.BookmarkBorder,
-                contentDescription = stringResource(R.string.favorites_and_history),
-                onClick = { viewModel.setShowFavoritesDialog(true) },
-                modifier = Modifier.testTag("top_favorites_button")
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AetherOpticalIconLens(
-                    icon = Icons.Outlined.Search,
-                    contentDescription = if (isFa) "جستجوی آسمان" else "Search the sky",
-                    onClick = onOpenSearch,
-                    modifier = Modifier.testTag("top_search_button")
-                )
-            }
-        }
-
-        // BOTTOM FLOATING RIM-LIT LOCATION & 360° SKY CAPSULES
+        // BOTTOM FLOATING RIM-LIT LOCATION, SEARCH & FULLSCREEN CAPSULES
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -713,31 +687,35 @@ private fun AetherSkyHeroSection(
             }
 
             Row(
-                modifier = Modifier
-                    .clip(RedShapes.capsule)
-                    .background(Color(0x5408080C))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .specularRimBorder(shape = RedShapes.capsule)
-                    .clickable { viewModel.setShowSkyViewer(true) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .testTag("home_sky_expand_button"),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.FitScreen,
-                    contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open fullscreen sky",
-                    tint = Color.White,
-                    modifier = Modifier.size(15.dp)
+                AetherOpticalIconLens(
+                    icon = Icons.Outlined.Search,
+                    contentDescription = if (isFa) "جستجوی آسمان" else "Search the sky",
+                    onClick = onOpenSearch,
+                    modifier = Modifier.testTag("top_search_button")
                 )
-                Text(
-                    text = if (isFa) "نمای کامل" else "360° Sky",
-                    style = RedTypographyTokens.caption.copy(
-                        fontWeight = FontWeight.Light,
-                        fontSize = 11.5.sp
-                    ),
-                    color = Color.White
-                )
+
+                Row(
+                    modifier = Modifier
+                        .clip(RedShapes.capsule)
+                        .background(Color(0x5408080C))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .specularRimBorder(shape = RedShapes.capsule)
+                        .clickable { viewModel.setShowSkyViewer(true) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .testTag("home_sky_expand_button"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.FitScreen,
+                        contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open fullscreen sky",
+                        tint = Color.White,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
             }
         }
     }

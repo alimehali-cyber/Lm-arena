@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.alijafari.red.astronomy.ui.components.HideStatusBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -68,6 +69,7 @@ fun PresetSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
         contentColor = c.onSurface,
         modifier = Modifier.testTag("preset_sheet")
     ) {
+        HideStatusBar()
         Column(
             modifier = Modifier
                 .fillMaxWidth()

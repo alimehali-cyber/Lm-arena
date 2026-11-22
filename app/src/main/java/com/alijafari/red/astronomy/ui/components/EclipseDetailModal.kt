@@ -51,6 +51,7 @@ fun EclipseDetailModal(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        HideStatusBar()
         EclipseDetailContent(
             detailedInfo = detailedInfo,
             language = language,

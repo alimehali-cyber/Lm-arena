@@ -37,6 +37,7 @@ import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.ui.MainUiState
+import com.alijafari.red.astronomy.ui.components.HideStatusBar
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSurface
@@ -850,6 +851,7 @@ fun TimeDilationCalculatorScreen(
             shape = squircleShape(RedCornerRadius.xl),
             containerColor = RedTheme.colors.surfaceElevated,
             confirmButton = {
+                HideStatusBar()
                 TextButton(onClick = { showHowItWorksDialog = false }) {
                     Text(
                         text = if (isFa) "متوجه شدم" else "Got It",
@@ -1060,6 +1062,7 @@ private fun ObjectSearchModal(
         containerColor = RedTheme.colors.surfaceElevated,
         shape = squircleShape(topStart = RedCornerRadius.xl, topEnd = RedCornerRadius.xl)
     ) {
+        HideStatusBar()
         Column(
             modifier = Modifier
                 .fillMaxWidth()

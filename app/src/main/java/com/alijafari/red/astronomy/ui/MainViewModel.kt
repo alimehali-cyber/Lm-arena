@@ -14,7 +14,6 @@ import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.data.catalog.GeoCity
 import com.alijafari.red.astronomy.data.catalog.GeoLocationCatalog
 import com.alijafari.red.astronomy.data.database.AppDatabase
-import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
@@ -40,7 +39,6 @@ data class MainUiState(
     val searchQuery: String = "",
     val selectedObjectForDetail: CelestialObject? = null,
     val isDetailFavorite: Boolean = false,
-    val showFavoritesDialog: Boolean = false,
     val showMoonWindow: Boolean = false,
 
     /**
@@ -67,7 +65,6 @@ data class MainUiState(
     val moonDayOffset: Float = 0f,
     val showSettingsDialog: Boolean = false,
     val showLocationSelector: Boolean = false,
-    val showObservationLogDialog: Boolean = false,
     val bortleClass: Int = 3,
     val favoritesList: List<String> = emptyList(),
     val favoriteLocations: List<GeoCity> = emptyList(),
@@ -79,7 +76,6 @@ data class MainUiState(
      * nearest city's name, which is only an approximation of where the observer actually is.
      */
     val isLiveGpsLocation: Boolean = false,
-    val observationLogs: List<ObservationLogEntity> = emptyList(),
     val userOccasions: List<UserOccasionEntity> = emptyList(),
     val timeMachineState: TimeMachineState = TimeMachineState(),
     val selectedTargetObject: CelestialObject? = null,
@@ -271,12 +267,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 _uiState.update { it.copy(favoriteLocations = list) }
-            }
-        }
-
-        viewModelScope.launch {
-            repository.observationLogsFlow.collect { logs ->
-                _uiState.update { it.copy(observationLogs = logs) }
             }
         }
 
@@ -612,10 +602,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setShowFavoritesDialog(show: Boolean) {
-        _uiState.update { it.copy(showFavoritesDialog = show) }
-    }
-
     fun setShowMoonWindow(show: Boolean) {
         _uiState.update { it.copy(showMoonWindow = show) }
     }
@@ -665,24 +651,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowSettingsDialog(show: Boolean) {
         _uiState.update { it.copy(showSettingsDialog = show) }
-    }
-
-    fun setShowObservationLogDialog(show: Boolean) {
-        _uiState.update { it.copy(showObservationLogDialog = show) }
-    }
-
-    fun addObservationLog(notes: String, rating: Int) {
-        val obj = _uiState.value.selectedObjectForDetail ?: return
-        val name = if (_uiState.value.language == AppLanguage.PERSIAN) obj.nameFa else obj.nameEn
-        viewModelScope.launch {
-            repository.addObservationLog(obj.id, name, notes, rating)
-        }
-    }
-
-    fun deleteObservationLog(log: ObservationLogEntity) {
-        viewModelScope.launch {
-            repository.deleteObservationLog(log)
-        }
     }
 
     // User Occasions (My Occasions)

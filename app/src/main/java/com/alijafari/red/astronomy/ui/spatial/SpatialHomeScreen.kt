@@ -628,22 +628,6 @@ private fun SpatialHomeSkyHero(
             verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
-                IconButton(
-                    onClick = { viewModel.setShowFavoritesDialog(true) },
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .testTag("top_favorites_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.BookmarkBorder,
-                        contentDescription = stringResource(R.string.favorites_and_history),
-                        tint = Color.White,
-                        modifier = Modifier.size(RedIconSize.sm)
-                    )
-                }
-
                 Text(
                     text = if (isFa) "زیگ" else "ZIG",
                     style = TextStyle(
@@ -659,26 +643,6 @@ private fun SpatialHomeSkyHero(
                         .testTag("home_red_title")
                 )
 
-                Row(
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onOpenSearch,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .testTag("top_search_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Search,
-                            contentDescription = if (isFa) "جستجوی اجرام آسمان" else "Search the sky",
-                            tint = Color.White,
-                            modifier = Modifier.size(RedIconSize.sm)
-                        )
-                    }
-
-                }
             }
         }
 
@@ -704,24 +668,49 @@ private fun SpatialHomeSkyHero(
                 modifier = Modifier.weight(1f, fill = false)
             )
 
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .solidSurface(
-                        shape = CircleShape,
-                        color = Color.Black.copy(alpha = 0.38f),
-                        border = BorderStroke(0.75.dp, Color.White.copy(alpha = 0.45f))
-                    )
-                    .clickable { viewModel.setShowSkyViewer(true) }
-                    .testTag("home_sky_expand_button"),
-                contentAlignment = Alignment.Center
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.FitScreen,
-                    contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open the sky fullscreen",
-                    tint = Color(0xFFF8FAFF),
-                    modifier = Modifier.size(17.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .solidSurface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.38f),
+                            border = BorderStroke(0.75.dp, Color.White.copy(alpha = 0.45f))
+                        )
+                        .clickable { onOpenSearch() }
+                        .testTag("top_search_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = if (isFa) "جستجوی اجرام آسمان" else "Search the sky",
+                        tint = Color(0xFFF8FAFF),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .solidSurface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.38f),
+                            border = BorderStroke(0.75.dp, Color.White.copy(alpha = 0.45f))
+                        )
+                        .clickable { viewModel.setShowSkyViewer(true) }
+                        .testTag("home_sky_expand_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.FitScreen,
+                        contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open the sky fullscreen",
+                        tint = Color(0xFFF8FAFF),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
             }
         }
 

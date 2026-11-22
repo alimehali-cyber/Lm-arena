@@ -116,6 +116,7 @@ fun EclipseWindow(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
+        HideStatusBar()
         Box(
             modifier = Modifier
                 .fillMaxSize()

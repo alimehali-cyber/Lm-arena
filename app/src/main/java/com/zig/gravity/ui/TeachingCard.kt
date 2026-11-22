@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.alijafari.red.astronomy.ui.components.HideStatusBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -184,6 +185,7 @@ fun ChallengeSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
         contentColor = c.onSurface,
         modifier = Modifier.testTag("challenge_sheet")
     ) {
+        HideStatusBar()
         // Same reasoning as the other sheets: the challenge list scrolls itself, but the prediction
         // controls that follow it must stay reachable when the sheet is taller than the screen.
         Column(

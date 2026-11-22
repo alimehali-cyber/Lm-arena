@@ -111,6 +111,7 @@ fun LocationSelectorDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        HideStatusBar()
         Box(
             modifier = Modifier
                 .fillMaxSize()

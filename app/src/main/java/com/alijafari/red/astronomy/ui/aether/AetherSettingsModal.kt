@@ -64,6 +64,7 @@ import com.alijafari.red.astronomy.ui.components.SettingsPlainRow
 import com.alijafari.red.astronomy.ui.components.SettingsSkin
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /**
@@ -440,8 +441,8 @@ fun AetherSettingsModal(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .clip(squircleShape(RedCornerRadius.lg))
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .clip(RedShapes.capsule)
                             .background(skin.groupBg)
                     ) {
                         SettingsPlainRow(

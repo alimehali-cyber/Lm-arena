@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.alijafari.red.astronomy.ui.components.HideStatusBar
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -69,6 +70,7 @@ fun TableSurfaceSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
         contentColor = c.onSurface,
         modifier = Modifier.testTag("table_surface_sheet")
     ) {
+        HideStatusBar()
         Column(
             modifier = Modifier
                 .fillMaxWidth()

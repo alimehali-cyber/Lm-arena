@@ -89,6 +89,7 @@ fun JalaliDatePickerDialog(
         containerColor = RedTheme.colors.surfaceElevated,
         shape = squircleShape(RedCornerRadius.window),
         title = {
+            HideStatusBar()
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally

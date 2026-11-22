@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /**
@@ -181,8 +182,8 @@ fun SettingsExpandableRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(squircleShape(RedCornerRadius.lg))
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RedShapes.capsule)
             .background(skin.groupBg)
             .testTag(testTag)
     ) {
@@ -190,7 +191,7 @@ fun SettingsExpandableRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onToggle)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -360,7 +361,7 @@ fun SettingsPlainRow(
 private fun SettingsIconChip(skin: SettingsSkin, icon: ImageVector) {
     Box(
         modifier = Modifier
-            .size(42.dp)
+            .size(34.dp)
             .clip(squircleShape(RedCornerRadius.md))
             .background(skin.chipBg),
         contentAlignment = Alignment.Center
@@ -369,7 +370,7 @@ private fun SettingsIconChip(skin: SettingsSkin, icon: ImageVector) {
             imageVector = icon,
             contentDescription = null,
             tint = skin.accent,
-            modifier = Modifier.size(21.dp)
+            modifier = Modifier.size(18.dp)
         )
     }
 }

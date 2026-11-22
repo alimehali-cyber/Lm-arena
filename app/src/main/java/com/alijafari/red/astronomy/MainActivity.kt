@@ -81,7 +81,6 @@ import com.alijafari.red.astronomy.ui.spatial.SpatialThemeProvider
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyBackdrop
 import com.alijafari.red.astronomy.ui.backdrop.PhotoBackdrop
-import com.alijafari.red.astronomy.ui.components.FavoritesHistoryDialog
 import com.alijafari.red.astronomy.ui.components.LocationSelectorDialog
 import com.alijafari.red.astronomy.ui.components.MoonDetailWindow
 import com.alijafari.red.astronomy.ui.components.ObjectDetailModal
@@ -169,6 +168,13 @@ class MainActivity : ComponentActivity() {
         SplashArtLoader.preload(applicationContext)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // The phone's status bar stays hidden across the app; a swipe from the top edge still
+        // reveals it transiently. Every dialog window re-hides it too (see HideStatusBar).
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+            systemBarsBehavior =
+                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
         // Android 12+: the system splash is a plain field of the velvet's darkest tone (see
         // values-v31/themes.xml) and the animated splash's first frame is that exact colour, so the
         // system splash can go the instant we draw - no fade overlapping the animation.
@@ -601,14 +607,6 @@ class MainActivity : ComponentActivity() {
                               uiState = uiState,
                               viewModel = viewModel,
                               onDismiss = { viewModel.closeObjectDetail() }
-                          )
-                      }
-
-                      if (uiState.showFavoritesDialog) {
-                          FavoritesHistoryDialog(
-                              uiState = uiState,
-                              viewModel = viewModel,
-                              onDismiss = { viewModel.setShowFavoritesDialog(false) }
                           )
                       }
 

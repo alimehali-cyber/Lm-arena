@@ -113,7 +113,6 @@ class ObjectDetailModalConsistencyTest {
         "precise_schedule",
         "facts_card",
         "description",
-        "coordinates",
-        "observation_log"
+        "coordinates"
     )
 }

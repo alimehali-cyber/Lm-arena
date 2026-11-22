@@ -491,6 +491,7 @@ fun TimeMachineControlBar(
             DatePickerDialog(
                 onDismissRequest = { showDatePicker = false },
                 confirmButton = {
+                    HideStatusBar()
                     TextButton(
                         onClick = {
                             datePickerState.selectedDateMillis?.let { pickedMillis ->
@@ -536,6 +537,7 @@ fun TimeMachineControlBar(
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
             confirmButton = {
+                HideStatusBar()
                 TextButton(
                     onClick = {
                         cal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
@@ -658,6 +660,7 @@ fun TimeMachineControlBar(
                 DatePickerDialog(
                     onDismissRequest = { showBirthDatePicker = false },
                     confirmButton = {
+                        HideStatusBar()
                         TextButton(
                             onClick = {
                                 bPickerState.selectedDateMillis?.let { birthDateMillis = it }
@@ -690,6 +693,7 @@ fun TimeMachineControlBar(
             containerColor = RedTheme.colors.surfaceElevated,
             shape = squircleShape(RedCornerRadius.window),
             title = {
+                HideStatusBar()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -870,6 +874,7 @@ fun TimeMachineControlBar(
                 containerColor = RedTheme.colors.surfaceElevated,
                 shape = squircleShape(RedCornerRadius.window),
                 title = {
+                    HideStatusBar()
                     Text(
                         text = if (occasionToEdit == null) {
                             if (isFa) "افزودن رویداد جدید" else "Add New Occasion"
@@ -997,6 +1002,7 @@ fun TimeMachineControlBar(
                     DatePickerDialog(
                         onDismissRequest = { showSubDatePicker = false },
                         confirmButton = {
+                            HideStatusBar()
                             TextButton(
                                 onClick = {
                                     subPickerState.selectedDateMillis?.let { pickedMillis ->
@@ -1041,6 +1047,7 @@ fun TimeMachineControlBar(
                 AlertDialog(
                     onDismissRequest = { showSubTimePicker = false },
                     confirmButton = {
+                        HideStatusBar()
                         TextButton(
                             onClick = {
                                 cal.set(Calendar.HOUR_OF_DAY, subTimePickerState.hour)
