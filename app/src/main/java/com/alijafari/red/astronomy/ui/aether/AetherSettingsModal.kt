@@ -1,44 +1,30 @@
 package com.alijafari.red.astronomy.ui.aether
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Brightness6
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.NightsStay
-import androidx.compose.material.icons.outlined.Widgets
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,18 +34,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import com.alijafari.red.astronomy.BuildConfig
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.domain.AppLanguage
@@ -70,27 +52,36 @@ import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
-import com.alijafari.red.astronomy.ui.components.SafeAppLogo
+import com.alijafari.red.astronomy.ui.components.AboutZigPage
+import com.alijafari.red.astronomy.ui.components.BORTLE_CLASSES
+import com.alijafari.red.astronomy.ui.components.BortleGuideList
+import com.alijafari.red.astronomy.ui.components.SettingsEmergenceDialog
+import com.alijafari.red.astronomy.ui.components.SettingsExpandableRow
+import com.alijafari.red.astronomy.ui.components.SettingsGroupHeader
+import com.alijafari.red.astronomy.ui.components.SettingsMenuPanel
+import com.alijafari.red.astronomy.ui.components.SettingsOptionRow
+import com.alijafari.red.astronomy.ui.components.SettingsPlainRow
+import com.alijafari.red.astronomy.ui.components.SettingsSkin
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /**
- * Aether Telemetry UI — Frameless Rim-Lit Settings Modal (`36.dp` Optical Lens):
- *
- * Exposes all 7 expandable configuration sections with zero bulky outer bezels,
- * `1.dp` directional `specularRimBorder`, glowing LED dot selection indicators (`●` / `○`),
- * minimal `AetherPillBadge` triggers, and rolling Dot-Matrix Bortle calibration with
- * tactile `← ━ →` micro-steppers.
+ * Aether Telemetry UI — the shared Samsung-style settings menu wearing the Aether palette:
+ * crimson telemetry accents over the frosted optical veil, emerging from the settings button
+ * and collapsing back into it. The About page carries the app identity and its creator.
  */
 @Composable
 fun AetherSettingsModal(
     uiState: MainUiState,
     viewModel: MainViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    settingsButtonCenter: Offset? = null
 ) {
     val palette = AetherTheme.palette
-    val context = LocalContext.current
     val isFa = uiState.language == AppLanguage.PERSIAN
+
+    var showAbout by remember { mutableStateOf(false) }
 
     var isUiStyleExpanded by remember { mutableStateOf(false) }
     var isLanguageExpanded by remember { mutableStateOf(false) }
@@ -138,82 +129,38 @@ fun AetherSettingsModal(
         "Class ${uiState.bortleClass}"
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 24.dp),
-            contentAlignment = Alignment.Center
+    val skin = SettingsSkin(
+        accent = palette.crimsonGlow,
+        onAccent = Color.White,
+        panel = palette.frostedGlassFill,
+        groupBg = palette.frostedOpticalVeil,
+        selectedBg = palette.crimsonGlow.copy(alpha = 0.20f),
+        chipBg = palette.crimsonGlow.copy(alpha = 0.16f),
+        textPrimary = palette.textPrimary,
+        textSecondary = palette.textSecondary,
+        textTertiary = palette.textMicro,
+        divider = palette.mutedTelemetry.copy(alpha = 0.25f)
+    )
+
+    SettingsEmergenceDialog(origin = settingsButtonCenter, onDismiss = onDismiss) {
+        SettingsMenuPanel(
+            skin = skin,
+            title = stringResource(R.string.app_settings),
+            subtitle = if (isFa) "سیستم تله‌متری اتر • اپتیکال" else "Aether Telemetry • Spatial Lens",
+            onClose = onDismiss
         ) {
-            AetherFrostedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 660.dp)
-                    .testTag("settings_dialog"),
-                cornerRadius = 36.dp,
-                contentPadding = PaddingValues(22.dp),
-                accentGlow = palette.crimsonGlow
-            ) {
-                // Header Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        AetherOpticalIconLens(
-                            icon = Icons.Default.Settings,
-                            contentDescription = null,
-                            onClick = {},
-                            size = 38.dp,
-                            iconSize = 18.dp,
-                            isActive = true
-                        )
-                        Column {
-                            Text(
-                                text = stringResource(R.string.app_settings),
-                                style = RedTypographyTokens.sectionTitle.copy(
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    letterSpacing = (-0.3).sp
-                                ),
-                                color = palette.textPrimary
-                            )
-                            Text(
-                                text = if (isFa) "سیستم تله‌متری اتر • اپتیکال" else "Aether Telemetry • Spatial Lens",
-                                style = RedTypographyTokens.caption.copy(
-                                    fontWeight = FontWeight.Light,
-                                    fontSize = 11.sp
-                                ),
-                                color = palette.textMicro
-                            )
-                        }
-                    }
-
-                    AetherLedDotArray(
-                        totalDots = 3,
-                        litCount = 3,
-                        activeColor = palette.glowWhite
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
+            Box(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 24.dp)
                 ) {
-                    // 0. Interface Style (Default, Spatial, Aether Telemetry)
-                    AetherExpandableSection(
+                    // ── General ────────────────────────────────────────────────
+                    SettingsGroupHeader(stringResource(R.string.settings_group_general), skin)
+
+                    SettingsExpandableRow(
+                        skin = skin,
                         title = stringResource(R.string.ui_style_title),
                         valueLabel = uiStyleLabel,
                         icon = Icons.Outlined.Widgets,
@@ -221,21 +168,24 @@ fun AetherSettingsModal(
                         onToggle = { isUiStyleExpanded = !isUiStyleExpanded },
                         testTag = "settings_section_ui_style"
                     ) {
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.ui_style_default),
                             subtitle = stringResource(R.string.ui_style_default_desc),
                             isSelected = uiState.uiStyle == AppUiStyle.DEFAULT,
                             onClick = { viewModel.setUiStyle(AppUiStyle.DEFAULT) },
                             modifier = Modifier.testTag("settings_ui_style_default")
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.ui_style_spatial),
                             subtitle = stringResource(R.string.ui_style_spatial_desc),
                             isSelected = uiState.uiStyle == AppUiStyle.SPATIAL,
                             onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
                             modifier = Modifier.testTag("settings_ui_style_spatial")
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.ui_style_aether),
                             subtitle = stringResource(R.string.ui_style_aether_desc),
                             isSelected = uiState.uiStyle == AppUiStyle.AETHER,
@@ -244,8 +194,8 @@ fun AetherSettingsModal(
                         )
                     }
 
-                    // 1. Application Language
-                    AetherExpandableSection(
+                    SettingsExpandableRow(
+                        skin = skin,
                         title = stringResource(R.string.application_language),
                         valueLabel = languageLabel,
                         icon = Icons.Default.Language,
@@ -253,13 +203,15 @@ fun AetherSettingsModal(
                         onToggle = { isLanguageExpanded = !isLanguageExpanded },
                         testTag = "settings_section_language"
                     ) {
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.language_persian),
                             subtitle = "فارسی (Persian)",
                             isSelected = uiState.language == AppLanguage.PERSIAN,
                             onClick = { viewModel.setLanguage(AppLanguage.PERSIAN) }
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.language_english),
                             subtitle = "English (US)",
                             isSelected = uiState.language == AppLanguage.ENGLISH,
@@ -267,8 +219,8 @@ fun AetherSettingsModal(
                         )
                     }
 
-                    // 2. Calendar System
-                    AetherExpandableSection(
+                    SettingsExpandableRow(
+                        skin = skin,
                         title = stringResource(R.string.calendar_system),
                         valueLabel = calendarLabel,
                         icon = Icons.Default.CalendarToday,
@@ -276,13 +228,15 @@ fun AetherSettingsModal(
                         onToggle = { isCalendarExpanded = !isCalendarExpanded },
                         testTag = "settings_section_calendar"
                     ) {
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.calendar_solar_hijri),
                             subtitle = if (isFa) "تقویم خورشیدی رسمی ایران" else "Solar Hijri Calendar",
                             isSelected = uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI,
                             onClick = { viewModel.setCalendarSystem(CalendarSystem.SOLAR_HIJRI) }
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.calendar_gregorian),
                             subtitle = if (isFa) "تقویم بین‌المللی میلادی" else "Gregorian International Calendar",
                             isSelected = uiState.calendarSystem == CalendarSystem.GREGORIAN,
@@ -290,8 +244,11 @@ fun AetherSettingsModal(
                         )
                     }
 
-                    // 3. App Theme (Light, Dark, Wine / می)
-                    AetherExpandableSection(
+                    // ── Appearance ────────────────────────────────────────────
+                    SettingsGroupHeader(stringResource(R.string.settings_group_appearance), skin)
+
+                    SettingsExpandableRow(
+                        skin = skin,
                         title = if (isFa) "پوسته برنامه" else "App Theme",
                         valueLabel = appThemeLabel,
                         icon = Icons.Default.Palette,
@@ -299,17 +256,20 @@ fun AetherSettingsModal(
                         onToggle = { isAppThemeExpanded = !isAppThemeExpanded },
                         testTag = "settings_section_app_theme"
                     ) {
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = if (isFa) "روشن" else "Light",
                             isSelected = uiState.themeMode == ThemeMode.LIGHT,
                             onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) }
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = if (isFa) "تاریک" else "Dark",
                             isSelected = uiState.themeMode == ThemeMode.DARK,
                             onClick = { viewModel.setThemeMode(ThemeMode.DARK) }
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.theme_wine),
                             subtitle = stringResource(R.string.theme_wine_desc),
                             isSelected = uiState.themeMode == ThemeMode.WINE,
@@ -318,33 +278,55 @@ fun AetherSettingsModal(
                         )
                     }
 
-                    // 4. Sky Canvas Theme
-                    AetherExpandableSection(
-                        title = if (isFa) "سبک هنری آسمان (RMAE)" else "Sky Canvas Theme",
+                    SettingsExpandableRow(
+                        skin = skin,
+                        title = if (isFa) "سبک هنری آسمان" else "Sky Canvas Theme",
                         valueLabel = skyCanvasThemeLabel,
-                        icon = Icons.Default.AutoAwesome,
+                        icon = Icons.Outlined.AutoAwesome,
                         isExpanded = isSkyCanvasThemeExpanded,
                         onToggle = { isSkyCanvasThemeExpanded = !isSkyCanvasThemeExpanded },
                         testTag = "settings_section_sky_theme"
                     ) {
-                        listOf(
-                            SkyCanvasTheme.REAL_SKY to (if (isFa) "آسمان واقعی (Real Sky)" else "Real Sky"),
-                            SkyCanvasTheme.ATMOSPHERIC_SKY to (if (isFa) "آسمان جوی (Atmospheric)" else "Atmospheric Sky"),
-                            SkyCanvasTheme.MONOCHROME_SCIENTIFIC to (if (isFa) "تک‌رنگ علمی (Monochrome)" else "Monochrome Scientific"),
-                            SkyCanvasTheme.KIDS_WATERCOLOR to (if (isFa) "آبرنگ کودکانه (Watercolor)" else "Kids Watercolor"),
-                            SkyCanvasTheme.OBSERVATORY to (if (isFa) "رصدخانه (Observatory)" else "Observatory"),
-                            SkyCanvasTheme.PAPERCRAFT_DIORAMA to (if (isFa) "دیوراما کاغذ برجسته (Papercraft)" else "Papercraft Diorama")
-                        ).forEach { (theme, label) ->
-                            AetherOptionRow(
-                                title = label,
-                                isSelected = uiState.skyCanvasTheme == theme,
-                                onClick = { viewModel.setSkyCanvasTheme(theme) }
-                            )
-                        }
+                        SettingsOptionRow(
+                            skin = skin,
+                            title = if (isFa) "آسمان واقعی (Real Sky)" else "Real Sky",
+                            isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.REAL_SKY,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.REAL_SKY) }
+                        )
+                        SettingsOptionRow(
+                            skin = skin,
+                            title = if (isFa) "آسمان جوی (Atmospheric)" else "Atmospheric Sky",
+                            isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.ATMOSPHERIC_SKY) }
+                        )
+                        SettingsOptionRow(
+                            skin = skin,
+                            title = if (isFa) "تک‌رنگ علمی (Monochrome)" else "Monochrome Scientific",
+                            isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME_SCIENTIFIC) }
+                        )
+                        SettingsOptionRow(
+                            skin = skin,
+                            title = if (isFa) "آبرنگ کودکانه (Watercolor)" else "Kids Watercolor",
+                            isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.KIDS_WATERCOLOR,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.KIDS_WATERCOLOR) }
+                        )
+                        SettingsOptionRow(
+                            skin = skin,
+                            title = if (isFa) "رصدخانه (Observatory)" else "Observatory",
+                            isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.OBSERVATORY) }
+                        )
+                        SettingsOptionRow(
+                            skin = skin,
+                            title = if (isFa) "دیوراما (Papercraft)" else "Papercraft Diorama",
+                            isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.PAPERCRAFT_DIORAMA,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.PAPERCRAFT_DIORAMA) }
+                        )
                     }
 
-                    // 5. App Backdrop
-                    AetherExpandableSection(
+                    SettingsExpandableRow(
+                        skin = skin,
                         title = stringResource(R.string.app_backdrop_title),
                         valueLabel = backdropLabel,
                         icon = Icons.Outlined.NightsStay,
@@ -352,38 +334,52 @@ fun AetherSettingsModal(
                         onToggle = { isAppBackdropExpanded = !isAppBackdropExpanded },
                         testTag = "settings_section_app_backdrop"
                     ) {
-                        AetherOptionRow(
-                            title = if (isFa) "خاموش (مش نوری اتر)" else "Off (Aether Ambient Mesh)",
-                            subtitle = stringResource(R.string.backdrop_off_desc),
+                        SettingsOptionRow(
+                            skin = skin,
+                            title = if (isFa) "خاموش (مش اتر)" else "Off (Aether Mesh)",
                             isSelected = uiState.appBackdropMode == AppBackdropMode.NONE,
                             onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NONE) },
                             modifier = Modifier.testTag("settings_backdrop_off")
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.live_sky_setting),
-                            subtitle = stringResource(R.string.live_sky_desc),
                             isSelected = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
                             onClick = { viewModel.setAppBackdropMode(AppBackdropMode.LIVE_SKY) },
                             modifier = Modifier.testTag("settings_live_sky_switch")
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.backdrop_ngc1929_setting),
-                            subtitle = stringResource(R.string.backdrop_ngc1929_desc),
                             isSelected = uiState.appBackdropMode == AppBackdropMode.NGC_1929,
                             onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NGC_1929) },
                             modifier = Modifier.testTag("settings_backdrop_ngc1929")
                         )
-                        AetherOptionRow(
+                        SettingsOptionRow(
+                            skin = skin,
                             title = stringResource(R.string.backdrop_cepheus_setting),
-                            subtitle = stringResource(R.string.backdrop_cepheus_desc),
                             isSelected = uiState.appBackdropMode == AppBackdropMode.CEPHEUS,
                             onClick = { viewModel.setAppBackdropMode(AppBackdropMode.CEPHEUS) },
                             modifier = Modifier.testTag("settings_backdrop_cepheus")
                         )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = when (uiState.appBackdropMode) {
+                                AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_desc)
+                                AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_desc)
+                                AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_desc)
+                                AppBackdropMode.NONE -> stringResource(R.string.backdrop_off_desc)
+                            },
+                            style = RedTypographyTokens.caption.copy(fontSize = 11.5.sp),
+                            color = skin.textTertiary
+                        )
                     }
 
-                    // 6. Bortle Light Pollution Scale (Dot-Matrix + Micro-Stepper + Telemetry Slider)
-                    AetherExpandableSection(
+                    // ── Sky & Science ─────────────────────────────────────────
+                    SettingsGroupHeader(stringResource(R.string.settings_group_sky_science), skin)
+
+                    SettingsExpandableRow(
+                        skin = skin,
                         title = if (isFa) "آلودگی نوری (مقیاس بورتل)" else "Light Pollution (Bortle Scale)",
                         valueLabel = bortleLabel,
                         icon = Icons.Default.Brightness6,
@@ -396,275 +392,98 @@ fun AetherSettingsModal(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(
-                                    text = if (isFa) "کلاس تاریکی آسمان" else "Bortle Sky Darkness",
-                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Medium),
-                                    color = palette.textPrimary
-                                )
-                                AetherMicroStepper(
-                                    onDecrement = {
-                                        viewModel.setBortleClass((uiState.bortleClass - 1).coerceIn(1, 9))
-                                    },
-                                    onIncrement = {
-                                        viewModel.setBortleClass((uiState.bortleClass + 1).coerceIn(1, 9))
-                                    },
-                                    canDecrement = uiState.bortleClass > 1,
-                                    canIncrement = uiState.bortleClass < 9,
-                                    tint = palette.textPrimary
-                                )
-                            }
-
-                            AetherRollingDotMatrixCounter(
-                                valueText = if (isFa) {
-                                    TimeEngine.formatPersianNumbers("0${uiState.bortleClass}")
-                                } else {
-                                    "0${uiState.bortleClass}"
-                                },
-                                dotSize = 2.4.dp,
-                                dotGap = 0.9.dp,
-                                charGap = 3.0.dp,
-                                color = palette.glowWhite,
-                                glowColor = palette.crimsonGlow,
-                                showGhostGrid = true
+                            Text(
+                                text = if (isFa) "کلاس انتخابی بورتل:" else "Selected Bortle Class:",
+                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                color = skin.textPrimary
+                            )
+                            val activeInfo = BORTLE_CLASSES.getOrNull(uiState.bortleClass - 1)
+                            Text(
+                                text = "${uiState.bortleClass} - ${if (isFa) activeInfo?.nameFa ?: "" else activeInfo?.nameEn ?: ""}",
+                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                color = skin.accent
                             )
                         }
 
-                        AetherTelemetrySlider(
+                        Slider(
                             value = uiState.bortleClass.toFloat(),
-                            onValueChange = { viewModel.setBortleClass(it.toInt().coerceIn(1, 9)) },
+                            onValueChange = { viewModel.setBortleClass(it.toInt()) },
                             valueRange = 1f..9f,
                             steps = 7,
-                            accentColor = palette.crimsonGlow,
+                            colors = SliderDefaults.colors(
+                                thumbColor = skin.accent,
+                                activeTrackColor = skin.accent,
+                                inactiveTrackColor = skin.accent.copy(alpha = 0.18f)
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("bortle_class_slider")
                         )
+
+                        Text(
+                            text = if (isFa) "راهنمای تطبیق وضعیت آسمان شب:" else "Sky Appearance Identification Guide:",
+                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                            color = skin.textTertiary
+                        )
+
+                        BortleGuideList(
+                            skin = skin,
+                            isFa = isFa,
+                            selectedClass = uiState.bortleClass,
+                            onSelect = { viewModel.setBortleClass(it) }
+                        )
                     }
 
-                    // 7. Developer Credit Card
-                    val creditShape = squircleShape(26.dp)
-                    Row(
+                    // ── About ─────────────────────────────────────────────────
+                    SettingsGroupHeader(stringResource(R.string.settings_group_about), skin)
+
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(creditShape)
-                            .background(palette.frostedGlassFill)
-                            .specularRimBorder(cornerRadius = 26.dp, shape = creditShape)
-                            .padding(14.dp)
-                            .testTag("developer_credit_card"),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(horizontal = 16.dp)
+                            .clip(squircleShape(RedCornerRadius.lg))
+                            .background(skin.groupBg)
                     ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(palette.crimsonGlow.copy(alpha = 0.16f))
-                                .specularRimBorder(shape = CircleShape)
-                        ) {
-                            SafeAppLogo(modifier = Modifier.size(28.dp), cornerRadius = 8.dp)
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (isFa) "توسعه‌دهنده: علی جعفری" else "Developed by Ali Jafari",
-                                style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.Light),
-                                color = palette.textPrimary
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Send,
-                                    contentDescription = null,
-                                    tint = palette.textSecondary,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                AetherPillBadge(
-                                    text = "@EdisonWasAThief",
-                                    tint = palette.textPrimary,
-                                    onClick = {
-                                        try {
-                                            context.startActivity(
-                                                Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/EdisonWasAThief"))
-                                            )
-                                        } catch (_: Exception) {
-                                        }
-                                    }
-                                )
-                            }
-                        }
+                        SettingsPlainRow(
+                            skin = skin,
+                            title = stringResource(R.string.settings_about_title),
+                            subtitle = "${stringResource(R.string.about_version_label)} ${BuildConfig.VERSION_NAME} • Ali Jafari",
+                            icon = Icons.Outlined.Info,
+                            onClick = { showAbout = true },
+                            modifier = Modifier.testTag("settings_about_button")
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(thickness = 0.6.dp, color = palette.textMicro.copy(alpha = 0.28f))
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    AetherPillBadge(
-                        text = stringResource(R.string.ok),
-                        selected = true,
-                        tint = palette.textPrimary,
-                        onClick = onDismiss
+                // The About page slides over the menu and slides back away.
+                AnimatedVisibility(
+                    visible = showAbout,
+                    modifier = Modifier.fillMaxSize(),
+                    enter = slideInHorizontally(
+                        spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow)
+                    ) { it / 3 } + fadeIn(
+                        spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow)
+                    ),
+                    exit = slideOutHorizontally(
+                        spring(dampingRatio = 1f, stiffness = Spring.StiffnessMedium)
+                    ) { it / 3 } + fadeOut(
+                        spring(dampingRatio = 1f, stiffness = Spring.StiffnessMedium)
                     )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(skin.panel)
+                    ) {
+                        AboutZigPage(
+                            skin = skin,
+                            isFa = isFa,
+                            versionName = BuildConfig.VERSION_NAME,
+                            onBack = { showAbout = false }
+                        )
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AetherExpandableSection(
-    title: String,
-    valueLabel: String,
-    icon: ImageVector,
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
-    testTag: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val palette = AetherTheme.palette
-    val rotation by animateFloatAsState(
-        targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = tween(180),
-        label = "AetherSectionChevron"
-    )
-    val shape = squircleShape(26.dp)
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(palette.frostedGlassFill)
-            .specularRimBorder(cornerRadius = 26.dp, shape = shape)
-            .testTag(testTag)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onToggle)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (isExpanded) palette.crimsonGlow else palette.textSecondary,
-                    modifier = Modifier.size(19.dp)
-                )
-                Text(
-                    text = title,
-                    style = RedTypographyTokens.bodyPrimary.copy(
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp
-                    ),
-                    color = palette.textPrimary
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                AetherPillBadge(
-                    text = valueLabel,
-                    selected = isExpanded,
-                    tint = palette.textPrimary
-                )
-
-                Icon(
-                    imageVector = Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = palette.textSecondary,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .rotate(rotation)
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically(tween(180)) + fadeIn(tween(180)),
-            exit = shrinkVertically(tween(140)) + fadeOut(tween(140))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = if (palette.isDark) 0.22f else 0.04f))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                content = content
-            )
-        }
-    }
-}
-
-@Composable
-private fun AetherOptionRow(
-    title: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    subtitle: String? = null
-) {
-    val palette = AetherTheme.palette
-    val shape = squircleShape(20.dp)
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(
-                if (isSelected) palette.crimsonGlow.copy(alpha = 0.20f) else palette.frostedGlassFill
-            )
-            .specularRimBorder(cornerRadius = 20.dp, shape = shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = RedTypographyTokens.bodyPrimary.copy(
-                    fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Light,
-                    fontSize = 13.5.sp
-                ),
-                color = palette.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (!subtitle.isNullOrBlank()) {
-                Text(
-                    text = subtitle,
-                    style = RedTypographyTokens.caption.copy(
-                        fontWeight = FontWeight.Light,
-                        fontSize = 11.sp
-                    ),
-                    color = palette.textSecondary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        AetherLegendDotItem(
-            label = "",
-            filled = isSelected,
-            dotColor = if (isSelected) palette.glowWhite else palette.textMicro
-        )
     }
 }

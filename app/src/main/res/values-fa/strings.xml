@@ -128,4 +128,21 @@
     <string name="zig_blackhole_title">سیاه‌چاله زیگ</string>
     <string name="zig_blackhole_subtitle">شبیه‌ساز ژئودزیکی کر–شیلد</string>
     <string name="zig_blackhole_description">شبیه‌ساز تعاملی WebGL2 سیاه‌چاله کر–شیلد، اختروش TON 618 و ادغام سیاه‌چاله‌های دوتایی به همراه سقوط آزاد به درون افق رویداد، فیلتر EHT و فیزیک قرص نسبیتی.</string>
+
+    <!-- Settings menu groups -->
+    <string name="settings_group_general">عمومی</string>
+    <string name="settings_group_appearance">ظاهر</string>
+    <string name="settings_group_sky_science">آسمان و علم</string>
+    <string name="settings_group_about">درباره</string>
+    <string name="settings_back_to_menu">تنظیمات</string>
+
+    <!-- About ZIG -->
+    <string name="settings_about_title">درباره ZIG</string>
+    <string name="about_tagline">همراه آفلاین آسمان‌شناسی</string>
+    <string name="about_version_label">نسخه</string>
+    <string name="about_desc">ZIG گوشی شما را به یک رصدخانه جیبی تبدیل می‌کند: نقشه علمی آسمان، شناسایی لحظه‌ای ستارگان و ماهواره‌ها با واقعیت افزوده، فازهای ماه و گرفتگی‌ها، رهگیری عبور ایستگاه فضایی، ماشین زمان برای هر لحظه از تاریخ، و سندباکس گرانش — همه کاملاً آفلاین، به فارسی و انگلیسی.</string>
+    <string name="about_creator_title">سازنده و توسعه‌دهنده</string>
+    <string name="about_creator_name">علی جعفری</string>
+    <string name="about_contact_telegram">ارتباط در تلگرام</string>
+    <string name="about_copyright">© ۲۰۲۶ علی جعفری. تمام حقوق محفوظ است.</string>
 </resources>

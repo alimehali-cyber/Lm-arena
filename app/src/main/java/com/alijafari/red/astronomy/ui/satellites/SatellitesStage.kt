@@ -715,8 +715,8 @@ internal fun SatelliteHud(
         val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val top = topInset + if (state.legend) 292.dp else if (!status.isLive) 148.dp else 112.dp
-        // The dock is a quarter shorter than it was: 48 dp of pill plus its 8 dp margins.
-        val navClearance = bottomInset + 68.dp
+        // The bigger centred chrome: 56 dp of pill plus its 8 dp margins and air.
+        val navClearance = bottomInset + 76.dp
         val compact = width < 360.dp || height - topInset - bottomInset < 700.dp
         val padding = if (width >= 412.dp) 20.dp else 16.dp
         // Both cards below the globe are measured together, so the framing never assumes a height.

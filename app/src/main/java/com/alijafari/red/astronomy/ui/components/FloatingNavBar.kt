@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
@@ -35,12 +36,15 @@ import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /**
- * The dock is three quarters of the available width and three quarters of the old height, on the
- * leading side — the right in Persian, the left in English — so the settings bubble has the space it
- * leaves instead of the bar spanning the whole screen.
+ * The dock and the circular settings button form one cluster, close together and centred at the
+ * bottom of the screen on every skin. The dock is a tall capsule that stops short of full width so
+ * the pair breathes on both sides; the settings circle tucks right beside it.
  */
-const val BOTTOM_NAV_WIDTH_FRACTION = 0.75f
-val BOTTOM_NAV_HEIGHT: Dp = 48.dp
+const val BOTTOM_NAV_WIDTH_FRACTION = 0.72f
+val BOTTOM_NAV_HEIGHT: Dp = 56.dp
+
+/** The tight air between the dock and the settings circle in the centred cluster. */
+val BOTTOM_NAV_GAP: Dp = 8.dp
 
 /** The one silhouette every skin's dock wears: a squircle pill, ends fully rounded. */
 internal fun bottomNavShape() = squircleShape(RedCornerRadius.pill)
@@ -128,7 +132,7 @@ fun FloatingBottomBar(
                                 imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
                                 contentDescription = stringResource(item.titleRes),
                                 tint = activeColor,
-                                modifier = Modifier.size(RedIconSize.sm)
+                                modifier = Modifier.size(RedIconSize.md)
                             )
 
                             Spacer(modifier = Modifier.height(2.dp))
@@ -138,7 +142,7 @@ fun FloatingBottomBar(
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                 color = activeColor,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 maxLines = 1
                             )
                         }
@@ -150,20 +154,19 @@ fun FloatingBottomBar(
 }
 
 /**
- * Settings, in the space the dock leaves on the trailing side. It wears the dock's own material and
- * silhouette so the pair reads as one piece of chrome, and it appears wherever the dock appears.
+ * Settings, as a true circle tucked close beside the centred dock. It wears the dock's own material
+ * so the pair reads as one piece of chrome, and it appears wherever the dock appears.
  */
 @Composable
 fun FloatingSettingsBubble(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = bottomNavShape()
     RedSurface(
         modifier = modifier
             .size(BOTTOM_NAV_HEIGHT)
             .testTag("bottom_settings_button"),
-        shape = shape,
+        shape = CircleShape,
         color = RedTheme.colors.surfaceElevated,
         border = BorderStroke(1.dp, RedTheme.colors.border),
         elevation = RedElevation.floating,
@@ -174,7 +177,7 @@ fun FloatingSettingsBubble(
                 imageVector = Icons.Outlined.Settings,
                 contentDescription = stringResource(R.string.settings),
                 tint = RedTheme.colors.textPrimary,
-                modifier = Modifier.size(RedIconSize.sm)
+                modifier = Modifier.size(RedIconSize.md)
             )
         }
     }

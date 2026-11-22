@@ -6,9 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The bottom chrome is one dock and one settings bubble, on every skin: three quarters of the old
- * bar, a squircle pill, on the leading side — the right in Persian, the left in English — with the
- * settings button in the space it leaves, shown exactly where the dock is shown.
+ * The bottom chrome is one capsule dock and one circular settings button, on every skin: a little
+ * bigger than the previous generation, close together in one centred cluster at the bottom of the
+ * screen, shown exactly where the dock is shown.
  */
 class NavChromeTest {
 
@@ -25,40 +25,44 @@ class NavChromeTest {
     private val activity by lazy { source("com/alijafari/red/astronomy/MainActivity.kt") }
 
     @Test
-    fun everyDockIsAQuarterSmallerAndAPill() {
-        assertTrue("one shared width for all three skins", defaultBar.contains("const val BOTTOM_NAV_WIDTH_FRACTION = 0.75f"))
-        // 64 -> 48, 64 -> 48 and 62 -> 46: the old height, three quarters of it.
-        assertTrue(defaultBar.contains("val BOTTOM_NAV_HEIGHT: Dp = 48.dp"))
-        assertTrue(spatialBar.contains("private val SPATIAL_NAV_HEIGHT = 48.dp"))
-        assertTrue(aetherBar.contains("private val AETHER_NAV_HEIGHT = 46.dp"))
+    fun everyDockIsABiggerCapsulePillAndEverySettingsButtonIsACircle() {
+        assertTrue("one shared width for all three skins", defaultBar.contains("const val BOTTOM_NAV_WIDTH_FRACTION = 0.72f"))
+        // A little bigger than the 48/48/46 generation: 56, 56 and 54.
+        assertTrue(defaultBar.contains("val BOTTOM_NAV_HEIGHT: Dp = 56.dp"))
+        assertTrue(spatialBar.contains("private val SPATIAL_NAV_HEIGHT = 56.dp"))
+        assertTrue(aetherBar.contains("private val AETHER_NAV_HEIGHT = 54.dp"))
+        assertTrue("one shared tight gap for the cluster", defaultBar.contains("val BOTTOM_NAV_GAP: Dp = 8.dp"))
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
-            assertTrue("$name dock wears the squircle pill", bar.contains("squircleShape(RedCornerRadius.pill)"))
+            assertTrue("$name dock wears the squircle pill with fully rounded ends", bar.contains("squircleShape(RedCornerRadius.pill)"))
+            assertTrue("$name settings button is a true circle", bar.contains("CircleShape"))
             assertFalse("$name dock no longer spans the screen by itself", bar.contains(".navigationBarsPadding()"))
         }
     }
 
     @Test
-    fun theDockTakesThreeQuartersOfTheWidthOnTheLeadingSide() {
-        assertTrue("the dock and the bubble share one row", activity.contains("horizontalArrangement = Arrangement.SpaceBetween"))
-        assertTrue(activity.contains("BOTTOM_NAV_WIDTH_FRACTION"))
-        // The dock is the first child of that row, so it takes the start edge: right in Persian,
-        // left in English. The bubble is the second, so it takes the opposite one.
-        val row = activity.substringAfter("horizontalArrangement = Arrangement.SpaceBetween")
-        val navIdx = row.indexOf("AppUiStyle.AETHER -> AetherFloatingNavBar(")
-        val bubbleIdx = row.indexOf("AetherSettingsBubble(")
+    fun theDockAndSettingsCircleAreCenteredCloseTogether() {
+        // One row, one cluster: tight gap, centred as a unit instead of split to the edges.
+        val chrome = activity.substringAfter("SplashRevealRole.NavigationBar")
+            .substringBefore("// Dialogs and Modals")
+        assertTrue("cluster uses a tight spaced-by gap", chrome.contains("Arrangement.spacedBy("))
+        assertTrue("cluster is centred", chrome.contains("Alignment.CenterHorizontally"))
+        assertTrue("the dock still takes its shared width fraction", chrome.contains("BOTTOM_NAV_WIDTH_FRACTION"))
+        // The dock is the first child of that row and the circle the second.
+        val navIdx = chrome.indexOf("AppUiStyle.AETHER -> AetherFloatingNavBar(")
+        val bubbleIdx = chrome.indexOf("AetherSettingsBubble(")
         assertTrue("the dock comes first", navIdx >= 0 && navIdx < bubbleIdx)
     }
 
     @Test
-    fun theSettingsBubbleSitsBesideTheDockOnEverySkin() {
+    fun theSettingsCircleSitsBesideTheDockOnEverySkin() {
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
-            assertTrue("$name has its own settings bubble", bar.contains("SettingsBubble("))
-            assertTrue("$name bubble is addressable", bar.contains("testTag(\"bottom_settings_button\")"))
+            assertTrue("$name has its own settings circle", bar.contains("SettingsBubble("))
+            assertTrue("$name circle is addressable", bar.contains("testTag(\"bottom_settings_button\")"))
         }
         assertTrue(activity.contains("AetherSettingsBubble(onClick = openSettings)"))
         assertTrue(activity.contains("SpatialSettingsBubble(onClick = openSettings)"))
         assertTrue(activity.contains("FloatingSettingsBubble(onClick = openSettings)"))
-        // One condition for both: the bubble is drawn inside the dock's own visibility block.
+        // One condition for both: the circle is drawn inside the dock's own visibility block.
         val block = activity.substringAfter("if (!com.zig.gravity.ui.ImmersiveScreenState.active")
         assertTrue(block.substringBefore("// Dialogs and Modals").contains("FloatingSettingsBubble("))
         assertTrue("settings opens the same dialog", activity.contains("setShowSettingsDialog(true)"))
@@ -74,11 +78,12 @@ class NavChromeTest {
     }
 
     @Test
-    fun theHudClearsTheShorterDockAndThePreviewsShowTheSameChrome() {
+    fun theHudClearsTheBiggerDockAndThePreviewsShowTheSameChrome() {
         val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
-        assertTrue("the cards clear the 48 dp pill, not the old 64 dp bar", stage.contains("bottomInset + 68.dp"))
+        assertTrue("the cards clear the 56 dp pill, not the old 48 dp one", stage.contains("bottomInset + 76.dp"))
         val previews = file("src/debug", "com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt")
         assertTrue(previews.contains("BOTTOM_NAV_WIDTH_FRACTION"))
+        assertTrue(previews.contains("BOTTOM_NAV_GAP"))
         assertTrue(previews.contains("FloatingSettingsBubble("))
         assertTrue(previews.contains("AetherSettingsBubble("))
         assertTrue(previews.contains("SpatialSettingsBubble("))

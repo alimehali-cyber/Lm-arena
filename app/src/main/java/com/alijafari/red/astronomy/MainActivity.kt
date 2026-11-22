@@ -37,6 +37,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import com.alijafari.red.astronomy.ui.StartupTrace
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -496,11 +499,13 @@ class MainActivity : ComponentActivity() {
 
                     // Floating Navigation Bar.
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
+                    // Where the settings button sits on screen: the anchor the settings menu grows
+                    // out of when it opens and returns into when it closes.
+                    var settingsButtonCenter by remember { mutableStateOf<Offset?>(null) }
                     val satellitesChromeOccluded by viewModel.satellitesChromeOccluded.collectAsStateWithLifecycle()
                     if (!com.zig.gravity.ui.ImmersiveScreenState.active && !(uiState.selectedTab == 1 && satellitesChromeOccluded)) {
-                        // The dock is three quarters of the width and sits on the leading side — the
-                        // right in Persian, the left in English — with the settings bubble in the
-                        // space it leaves on the trailing side. They always travel together.
+                        // The pill dock and the circular settings button form one cluster: close
+                        // together, centred at the bottom of the screen. They always travel together.
                         val chromeModifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
@@ -509,7 +514,10 @@ class MainActivity : ComponentActivity() {
                             .splashReveal(splashState, SplashRevealRole.NavigationBar)
                         Row(
                             modifier = chromeModifier,
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(
+                                com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_GAP,
+                                Alignment.CenterHorizontally
+                            ),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val navModifier = Modifier.fillMaxWidth(
@@ -533,11 +541,17 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             val openSettings = { viewModel.setShowSettingsDialog(true) }
-                            when (uiState.uiStyle) {
-                                AppUiStyle.AETHER -> AetherSettingsBubble(onClick = openSettings)
-                                AppUiStyle.SPATIAL -> SpatialSettingsBubble(onClick = openSettings)
-                                AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components
-                                    .FloatingSettingsBubble(onClick = openSettings)
+                            Box(
+                                modifier = Modifier.onGloballyPositioned { coords ->
+                                    settingsButtonCenter = coords.boundsInRoot().center
+                                }
+                            ) {
+                                when (uiState.uiStyle) {
+                                    AppUiStyle.AETHER -> AetherSettingsBubble(onClick = openSettings)
+                                    AppUiStyle.SPATIAL -> SpatialSettingsBubble(onClick = openSettings)
+                                    AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components
+                                        .FloatingSettingsBubble(onClick = openSettings)
+                                }
                             }
                         }
                     }
@@ -612,17 +626,20 @@ class MainActivity : ComponentActivity() {
                               AppUiStyle.AETHER -> AetherSettingsModal(
                                   uiState = uiState,
                                   viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
+                                  onDismiss = { viewModel.setShowSettingsDialog(false) },
+                                  settingsButtonCenter = settingsButtonCenter
                               )
                               AppUiStyle.SPATIAL -> SpatialSettingsModal(
                                   uiState = uiState,
                                   viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
+                                  onDismiss = { viewModel.setShowSettingsDialog(false) },
+                                  settingsButtonCenter = settingsButtonCenter
                               )
                               AppUiStyle.DEFAULT -> SettingsDialog(
                                   uiState = uiState,
                                   viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
+                                  onDismiss = { viewModel.setShowSettingsDialog(false) },
+                                  settingsButtonCenter = settingsButtonCenter
                               )
                           }
                       }

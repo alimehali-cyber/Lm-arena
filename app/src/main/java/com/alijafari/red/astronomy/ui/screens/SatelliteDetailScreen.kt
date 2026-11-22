@@ -172,8 +172,8 @@ internal fun SatelliteDetailContent(
     CompositionLocalProvider(LocalZigSatTokens provides tokens, LocalSatSkin provides skin) {
         Box(modifier.fillMaxSize().background(tokens.canvas).testTag("satellite_detail_screen")) {
             LazyColumn(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(), state = listState,
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 74.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 74.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 item("hero") {
                     val next = passes?.firstOrNull { it.pass.startTimeMs > simNow } ?: spotlight?.pass
                     if (isSimulated) SatText(stringResource(R.string.sat_preview_at, SatFmt.dateTime(simNow, isFa, tz)), tokens.inkPrimary, strong = true)
@@ -284,8 +284,8 @@ private fun DetailHero(
         accent = if (tokens.skin == SatSkin.AETHER) tokens.timeAccent else null)) {
         SatellitePhotoPanel(satelliteItem, tokens, isFa)
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (!isOnline || staleBadgeText != null) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -477,7 +477,7 @@ private fun DetailTelemetryPanel(state: SatelliteLiveState, tokens: ZigSatTokens
     var expanded by remember { mutableStateOf(false) }
     val topo = state.topocentric
     ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SatText(stringResource(R.string.sat_telemetry), tokens.inkPrimary, size = 18, strong = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TelemetryHeroTile(stringResource(R.string.sat_altitude), SatFmt.kilometers(topo.satAltKm, isFa),
@@ -590,8 +590,7 @@ private fun SatellitePhotoPanel(item: SatelliteItem, tokens: ZigSatTokens, isFa:
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TelemetryHeroTile(label: String, value: String, unit: String, tokens: ZigSatTokens, modifier: Modifier, sub: String? = null) {
-    Column(modifier.heightIn(min = 88.dp).satMaterial(tokens, SatSlot.PassCard, squircleShape(SatRadius.tile),
-        backing = tokens.cardAlt, accent = if (tokens.skin == SatSkin.AETHER) tokens.timeAccent else null).padding(10.dp)) {
+    Column(modifier.padding(vertical = 6.dp, horizontal = 2.dp)) {
         SatText(label, tokens.inkSecondary, size = 11)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (tokens.skin == SatSkin.AETHER && LocalDensity.current.fontScale < 1.3f) {
@@ -606,8 +605,7 @@ private fun TelemetryHeroTile(label: String, value: String, unit: String, tokens
 @Composable
 private fun TelemetryTile(label: String, value: String, tokens: ZigSatTokens, modifier: Modifier,
     azimuth: Double? = null, muted: Boolean = false) {
-    Column(modifier.heightIn(min = 76.dp).satMaterial(tokens, SatSlot.PassCard, squircleShape(14.dp), tokens.cardAlt)
-        .padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier.padding(vertical = 6.dp, horizontal = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SatText(label, tokens.inkSecondary, size = 11)
         if (azimuth != null) Canvas(Modifier.align(Alignment.CenterHorizontally).size(if (tokens.skin == SatSkin.AETHER) 36.dp else 24.dp)) {
             val r = size.minDimension * .43f
@@ -647,8 +645,8 @@ private fun DetailVisibilityPanel(
 
     ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 text = if (isFa) "آیا با چشم دیده می‌شود؟" else "Naked-eye visibility assessment",
@@ -788,8 +786,8 @@ private fun DetailDossier(
 
     ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
                 modifier = Modifier
@@ -892,8 +890,9 @@ private fun DetailDossier(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DossierCell(label: String, value: String, tokens: ZigSatTokens, modifier: Modifier, isFa: Boolean, copy: (() -> Unit)? = null) {
-    Column(modifier.heightIn(min = 48.dp).satMaterial(tokens, SatSlot.PassCard, squircleShape(14.dp))
-        .then(if (copy == null) Modifier else Modifier.combinedClickable(onClick = {}, onLongClick = copy)).padding(8.dp)) {
+    Column(modifier
+        .then(if (copy == null) Modifier else Modifier.combinedClickable(onClick = {}, onLongClick = copy))
+        .padding(vertical = 8.dp, horizontal = 2.dp)) {
         ZigMicroCaps(label, tokens, isFa = isFa)
         SatText(value, tokens.inkPrimary, size = 13)
     }

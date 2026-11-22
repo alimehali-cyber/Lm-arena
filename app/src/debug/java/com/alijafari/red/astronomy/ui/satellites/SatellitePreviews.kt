@@ -44,6 +44,7 @@ import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.ui.aether.AetherFloatingNavBar
 import com.alijafari.red.astronomy.ui.aether.AetherSettingsBubble
 import com.alijafari.red.astronomy.ui.aether.AetherThemeProvider
+import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_GAP
 import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_WIDTH_FRACTION
 import com.alijafari.red.astronomy.ui.components.FloatingBottomBar
 import com.alijafari.red.astronomy.ui.components.FloatingSettingsBubble
@@ -182,7 +183,10 @@ internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detai
                                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                                     .navigationBarsPadding()
                                     .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(
+                                    BOTTOM_NAV_GAP,
+                                    Alignment.CenterHorizontally
+                                ),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 val navModifier = Modifier.fillMaxWidth(BOTTOM_NAV_WIDTH_FRACTION)

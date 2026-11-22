@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
@@ -102,7 +103,7 @@ fun EclipseDetailContent(
                 .fillMaxWidth()
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(22.dp)
         ) {
             // Header Bar with Icon, Title, and Close Button
             Row(
@@ -229,62 +230,6 @@ fun EclipseDetailContent(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Visibility,
-                                contentDescription = null,
-                                tint = bannerTextColor,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = if (result.isLocallyVisible) {
-                                    if (isFa) "قابل رصد از موقعیت شما" else "Visible from your Location"
-                                } else {
-                                    if (isFa) "عدم رصد مستقیم در موقعیت شما" else "Not Directly Visible"
-                                },
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = bannerTextColor
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(squircleShape(12.dp))
-                                .background(bannerTextColor.copy(alpha = 0.2f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            val remainingStr = when {
-                                detailedInfo.daysRemaining <= 0 -> if (isFa) "امروز / هم‌اکنون" else "Today / Active"
-                                isFa -> "${detailedInfo.daysRemaining} روز مانده".toPersianDigits()
-                                else -> "${detailedInfo.daysRemaining}d away"
-                            }
-                            Text(
-                                text = remainingStr,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = bannerTextColor
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = if (isFa) result.localVisibilityTextFa else result.localVisibilityTextEn,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
             }
 
             // Local Timings Grid (Start, Peak, End, Duration)
@@ -300,83 +245,10 @@ fun EclipseDetailContent(
 
             RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                color = Color.Transparent,
                 modifier = Modifier.fillMaxWidth(),
                 elevation = RedElevation.none,
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TimingItem(
-                            label = if (isFa) "شروع گرفتگی:" else "Eclipse Start:",
-                            time = startDisplay
-                        )
-                        TimingItem(
-                            label = if (isFa) "اوج گرفتگی (پیک):" else "Maximum Peak:",
-                            time = peakDisplay,
-                            isHighlight = true
-                        )
-                        TimingItem(
-                            label = if (isFa) "پایان گرفتگی:" else "Eclipse End:",
-                            time = endDisplay
-                        )
-                    }
-
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Schedule,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = if (isFa) {
-                                "مدت قابل رصد در موقعیت شما: ${detailedInfo.durationTextFa}"
-                            } else {
-                                "Local Observable Duration: ${detailedInfo.durationTextEn}"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    if (event.durationTotalSeconds > 0 &&
-                        (event.type == EclipseEngine.EclipseType.TOTAL_SOLAR ||
-                            event.type == EclipseEngine.EclipseType.ANNULAR_SOLAR ||
-                            event.type == EclipseEngine.EclipseType.TOTAL_LUNAR)
-                    ) {
-                        val totMin = event.durationTotalSeconds / 60
-                        val totSec = event.durationTotalSeconds % 60
-                        val centralDurLabel = when (event.type) {
-                            EclipseEngine.EclipseType.ANNULAR_SOLAR -> if (isFa) {
-                                "مدت حلقه آتش در اوج جهانی: ${totMin} دقیقه و ${totSec} ثانیه".toPersianDigits()
-                            } else {
-                                "Max Annularity Duration: ${totMin}m ${totSec}s"
-                            }
-                            else -> if (isFa) {
-                                "مدت گرفتگی کامل در اوج جهانی: ${totMin} دقیقه و ${totSec} ثانیه".toPersianDigits()
-                            } else {
-                                "Max Totality Duration: ${totMin}m ${totSec}s"
-                            }
-                        }
-                        Text(
-                            text = centralDurLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
                 Column(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -468,56 +340,10 @@ fun EclipseDetailContent(
 
             RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                color = Color.Transparent,
                 modifier = Modifier.fillMaxWidth(),
                 elevation = RedElevation.none,
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isPenumbralLunar) {
-                                if (isFa) "پوشش نیم‌سایه (۰٪ سایه تاریک):" else "Penumbral Shading (0% Umbral):"
-                            } else {
-                                if (isFa) "درصد پوشش گرفتگی:" else "Local Obscuration:"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        val obscurationStr = if (isFa) "%$displayPercent".toPersianDigits() else "$displayPercent%"
-                        Text(
-                            text = obscurationStr,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = barColor
-                        )
-                    }
-
-                    LinearProgressIndicator(
-                        progress = (displayPercent / 100f).coerceIn(0f, 1f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(squircleShape(4.dp)),
-                        color = barColor,
-                        trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        val altStr = if (isFa) "ارتفاع: ${detailedInfo.targetAltDeg} درجه".toPersianDigits() else "Alt: ${detailedInfo.targetAltDeg}°"
-                        val azStr = if (isFa) "سمت: ${detailedInfo.targetAzDeg} درجه".toPersianDigits() else "Az: ${detailedInfo.targetAzDeg}°"
-                        Text(text = altStr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(text = azStr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
                 Column(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -697,7 +523,7 @@ fun EclipseDetailContent(
             // Safety Guidelines
             RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                color = Color.Transparent,
                 modifier = Modifier.fillMaxWidth(),
                 elevation = RedElevation.none,
             ) {

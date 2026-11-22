@@ -325,8 +325,8 @@ fun ObjectDetailModal(
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp)
         ) {
             // Header Row: Name & Favorite Button
             item {
@@ -393,13 +393,7 @@ fun ObjectDetailModal(
 
             // Observability Badge Banner
             item {
-                RedSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = squircleShape(RedCornerRadius.window),
-                    color = obs.level.color.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, obs.level.color.copy(alpha = 0.3f)),
-                    elevation = RedElevation.none,
-                ) {
+                ObjectDetailSection {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -471,56 +465,9 @@ fun ObjectDetailModal(
 
             // MATHEMATICALLY DERIVED PHYSICAL PROPERTIES CARD
             item {
-                RedSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = squircleShape(RedCornerRadius.window),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    elevation = RedElevation.none,
-                ) {
+                ObjectDetailSection {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = AccentPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = if (isFa) "مشخصات فیزیکی و محاسباتی مراجع" else "Derived Physical Properties",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PropertyRow(
-                                label = if (isFa) "ابعاد و قطر" else "Size / Diameter",
-                                value = if (isFa) physicalProps.diameterDisplayFa else physicalProps.diameterDisplayEn
-                            )
-                            PropertyRow(
-                                label = if (isFa) "جرم تقریبی" else "Approximate Mass",
-                                value = if (isFa) physicalProps.massKgDisplayFa else physicalProps.massKgDisplayEn
-                            )
-                            PropertyRow(
-                                label = if (isFa) "گرانش سطحی" else "Surface Gravity",
-                                value = if (isFa) physicalProps.gravityMssDisplayFa else physicalProps.gravityMssDisplayEn
-                            )
-                            PropertyRow(
-                                label = if (isFa) "فاصله از زمین" else "Distance from Earth",
-                                value = liveDistanceText
-                            )
-                        }
-                    }
-                    Column(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
@@ -565,75 +512,9 @@ fun ObjectDetailModal(
 
             if (isDeepSkyDetail) {
                 item {
-                    RedSurface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = squircleShape(RedCornerRadius.window),
-                        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.24f)),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        elevation = RedElevation.none,
-                    ) {
+                    ObjectDetailSection {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(20.dp))
-                                Text(
-                                    text = if (isFa) "اطلاعات ژرف‌آسمان" else "Deep-Sky Catalog Data",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = AccentPrimary
-                                )
-                            }
-                            if (catalogDesignationText.isNotBlank()) {
-                                PropertyRow(
-                                    label = if (isFa) "شناسه‌های کاتالوگ" else "Catalog designations",
-                                    value = catalogDesignationText
-                                )
-                            }
-                            PropertyRow(
-                                label = if (isFa) "نوع و صورت فلکی" else "Type + constellation",
-                                value = if (isFa) "${celestialObj.type.nameFa} • ${celestialObj.constellationFa.ifBlank { celestialObj.constellationCode }}"
-                                else "${celestialObj.type.nameEn} • ${celestialObj.constellationEn.ifBlank { celestialObj.constellationCode }}"
-                            )
-                            if (celestialObj.constellationCode.isNotBlank()) {
-                                PropertyRow(
-                                    label = if (isFa) "کد صورت فلکی" else "Constellation code",
-                                    value = celestialObj.constellationCode
-                                )
-                            }
-                            PropertyRow(
-                                label = if (isFa) "قدر ظاهری" else "Magnitude",
-                                value = if (isFa) TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.1f", celestialObj.magnitude)) else String.format(Locale.US, "%.1f", celestialObj.magnitude)
-                            )
-                            angularSizeText?.let { angular ->
-                                PropertyRow(
-                                    label = if (isFa) "اندازه زاویه‌ای" else "Angular size",
-                                    value = angular
-                                )
-                            }
-                            linearSizeText?.let { linear ->
-                                PropertyRow(
-                                    label = if (isFa) "اندازه واقعی تخمینی" else "Computed physical size",
-                                    value = linear
-                                )
-                            }
-                            PropertyRow(
-                                label = if (isFa) "فاصله زنده / کاتالوگی" else "Live/catalog distance",
-                                value = liveDistanceText
-                            )
-                            if (celestialObj.bestViewingMonthEn.isNotBlank() || celestialObj.bestViewingMonthFa.isNotBlank()) {
-                                PropertyRow(
-                                    label = if (isFa) "بهترین زمان مشاهده" else "Best viewing month",
-                                    value = if (isFa) celestialObj.bestViewingMonthFa.ifBlank { celestialObj.bestViewingMonthEn } else celestialObj.bestViewingMonthEn.ifBlank { celestialObj.bestViewingMonthFa }
-                                )
-                            }
-                        }
-                        Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(
@@ -698,81 +579,9 @@ fun ObjectDetailModal(
 
             // Rise, Transit, Set Schedule Card
             item {
-                RedSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = squircleShape(RedCornerRadius.window),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    elevation = RedElevation.none,
-                ) {
+                ObjectDetailSection {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Schedule,
-                                contentDescription = null,
-                                tint = AccentPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = if (isFa) "زمان‌بندی دقیق طلوع، ترانزیت و غروب" else "Precise Schedule Today",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(horizontalAlignment = Alignment.Start) {
-                                Text(
-                                    text = if (isFa) "طلوع" else "Rise",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = riseSetTransit.riseTimeStr,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = if (isFa) "اوج ارتفاع (ترانزیت)" else "Peak Transit",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = riseSetTransit.transitTimeStr,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = AccentPrimary
-                                )
-                            }
-
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = if (isFa) "غروب" else "Set",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = riseSetTransit.setTimeStr,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                    Column(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
@@ -843,55 +652,9 @@ fun ObjectDetailModal(
             // Optional verified / authored facts. Omitted when no facts are available.
             if (coolFacts.isNotEmpty()) {
                 item {
-                    RedSurface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = squircleShape(RedCornerRadius.window),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        elevation = RedElevation.none,
-                    ) {
+                    ObjectDetailSection {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = AccentPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = objectDetailFactsHeader(coolFacts.size, isFa),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = AccentPrimary
-                                )
-                            }
-
-                            coolFacts.forEachIndexed { index, fact ->
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Text(
-                                        text = if (isFa) "${TimeEngine.formatPersianNumbers((index + 1).toString())}." else "${index + 1}.",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = AccentPrimary
-                                    )
-                                    Text(
-                                        text = fact,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                        Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(
@@ -953,54 +716,7 @@ fun ObjectDetailModal(
 
             // Scientific Coordinates (Collapsible Section - Hidden by default)
             item {
-                RedSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = squircleShape(RedCornerRadius.window),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                    elevation = RedElevation.none,
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showScientificCoords = !showScientificCoords },
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isFa) "مختصات علمی نجومی (RA / Dec)" else "Astronomical Coordinates",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Icon(
-                                imageVector = if (showScientificCoords) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = "Toggle Coords",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        if (showScientificCoords) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text(text = "RA (بعد)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                    Text(text = CoordinateEngine.formatRA(celestialObj.raDeg), style = MaterialTheme.typography.bodyMedium)
-                                }
-                                Column {
-                                    Text(text = "Dec (میل)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                    Text(text = CoordinateEngine.formatDec(celestialObj.decDeg), style = MaterialTheme.typography.bodyMedium)
-                                }
-                                Column {
-                                    Text(text = "Magnitude (قدر)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                    Text(text = String.format("%.1f", celestialObj.magnitude), style = MaterialTheme.typography.bodyMedium)
-                                }
-                            }
-                        }
-                    }
+                ObjectDetailSection {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
                             modifier = Modifier
@@ -1176,16 +892,46 @@ fun ObjectDetailModal(
 
 @Composable
 private fun PropertyRow(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            color = MaterialTheme.colorScheme.onSurface
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 7.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+        }
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+            thickness = 0.5.dp
         )
     }
+}
+
+/**
+ * A minimal section on the object detail page: no card, no box, just generous space around the
+ * content, so the page reads as one calm, continuous column of information.
+ */
+@Composable
+private fun ObjectDetailSection(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        content = content
+    )
 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
@@ -53,8 +54,8 @@ import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
-/** Three quarters of the old 62 dp dock, so the settings bubble has room beside it. */
-private val AETHER_NAV_HEIGHT = 46.dp
+/** A little taller than the 46 dp generation, matching the bigger centred chrome cluster. */
+private val AETHER_NAV_HEIGHT = 54.dp
 
 private data class AetherDockTab(
     val index: Int,
@@ -65,11 +66,11 @@ private data class AetherDockTab(
 )
 
 /**
- * Floating Aether Telemetry Capsule Dock: a squircle pill, three quarters of the old bar's height,
- * that takes three quarters of the width on the leading side so the settings bubble has the space
- * it leaves. Frameless optical capsule (`FrostedGlassFill` `#14FFFFFF`) with razor-thin `1.dp`
- * directional specular rim border, deep crimson jewel active lens, bouncy spring physics, and
- * `HapticFeedbackType.TextHandleMove` feedback.
+ * Floating Aether Telemetry Capsule Dock: a squircle pill with fully rounded ends, a little taller
+ * than the previous generation, that travels with the circular settings button as one centred
+ * cluster at the bottom of the screen. Frameless optical capsule (`FrostedGlassFill` `#14FFFFFF`)
+ * with razor-thin `1.dp` directional specular rim border, deep crimson jewel active lens, bouncy
+ * spring physics, and `HapticFeedbackType.TextHandleMove` feedback.
  */
 @Composable
 fun AetherFloatingNavBar(
@@ -168,14 +169,14 @@ fun AetherFloatingNavBar(
                         imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
                         contentDescription = stringResource(tab.labelRes),
                         tint = if (isSelected) Color.White else palette.textSecondary,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
                         text = stringResource(tab.labelRes),
                         style = RedTypographyTokens.caption.copy(
                             fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Light,
-                            fontSize = 9.5.sp,
+                            fontSize = 10.5.sp,
                             letterSpacing = (-0.2).sp
                         ),
                         color = if (isSelected) Color.White else palette.mutedTelemetry,
@@ -189,8 +190,8 @@ fun AetherFloatingNavBar(
 }
 
 /**
- * Settings, in the space the dock leaves on the trailing side: same frosted capsule, same crimson
- * rim, so the dock and it read as one piece of chrome. It appears wherever the dock appears.
+ * Settings, as a true circle tucked close beside the centred dock: same frosted capsule material and
+ * crimson rim, so the dock and it read as one piece of chrome. It appears wherever the dock appears.
  */
 @Composable
 fun AetherSettingsBubble(
@@ -198,7 +199,7 @@ fun AetherSettingsBubble(
     modifier: Modifier = Modifier
 ) {
     val palette = AetherTheme.palette
-    val shape = squircleShape(RedCornerRadius.pill)
+    val shape = CircleShape
     Box(
         modifier = modifier
             .size(AETHER_NAV_HEIGHT)
@@ -220,7 +221,7 @@ fun AetherSettingsBubble(
             imageVector = Icons.Outlined.Settings,
             contentDescription = stringResource(R.string.settings),
             tint = palette.textSecondary,
-            modifier = Modifier.size(17.dp)
+            modifier = Modifier.size(19.dp)
         )
     }
 }

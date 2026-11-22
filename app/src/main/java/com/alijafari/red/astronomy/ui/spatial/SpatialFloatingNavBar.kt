@@ -59,8 +59,8 @@ import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
-/** Three quarters of the old 64 dp dock, so the settings bubble has room beside it. */
-private val SPATIAL_NAV_HEIGHT = 48.dp
+/** A little taller than the 48 dp generation, matching the bigger centred chrome cluster. */
+private val SPATIAL_NAV_HEIGHT = 56.dp
 
 private data class SpatialNavTab(
     val index: Int,
@@ -73,9 +73,10 @@ private data class SpatialNavTab(
 /**
  * VisionOS Floating Spatial Glass Navigation Capsule.
  *
- * Floats above the bottom navigation inset inside a frosted G2 squircle-capsule dock,
- * featuring top-edge specular rim lighting, fluid spring press physics, and a pastel neon
- * radial glow (`#FFB0D0`) behind the active destination.
+ * Floats above the bottom navigation inset inside a frosted G2 squircle-capsule dock with fully
+ * rounded ends, a little taller than the previous generation, travelling with the circular settings
+ * button as one centred cluster. Features top-edge specular rim lighting, fluid spring press
+ * physics, and a pastel neon radial glow (`#FFB0D0`) behind the active destination.
  */
 @Composable
 fun SpatialFloatingNavBar(
@@ -247,14 +248,14 @@ private fun SpatialNavTabPill(
                 imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
                 contentDescription = stringResource(tab.labelRes),
                 tint = contentTint,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = stringResource(tab.labelRes),
                 style = RedTypographyTokens.caption.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 9.sp
+                    fontSize = 10.sp
                 ),
                 color = contentTint,
                 maxLines = 1,
@@ -274,8 +275,8 @@ private fun SpatialNavTabPill(
 }
 
 /**
- * Settings, in the space the dock leaves on the trailing side: same frosted glass capsule and rim, so
- * the dock and it read as one piece of chrome. It appears wherever the dock appears.
+ * Settings, as a true circle tucked close beside the centred dock: same frosted glass material and
+ * rim, so the dock and it read as one piece of chrome. It appears wherever the dock appears.
  */
 @Composable
 fun SpatialSettingsBubble(
@@ -283,7 +284,7 @@ fun SpatialSettingsBubble(
     modifier: Modifier = Modifier
 ) {
     val palette = SpatialTheme.palette
-    val shape = squircleShape(RedCornerRadius.pill)
+    val shape = CircleShape
     val rim = remember(palette) {
         Brush.verticalGradient(
             listOf(palette.rimTopHighlight, palette.rimSideBorder, palette.rimBottomReflection)
@@ -306,7 +307,7 @@ fun SpatialSettingsBubble(
             imageVector = Icons.Outlined.Settings,
             contentDescription = stringResource(R.string.settings),
             tint = palette.textSecondary,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(20.dp)
         )
     }
 }

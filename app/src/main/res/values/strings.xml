@@ -128,4 +128,21 @@
     <string name="zig_blackhole_title">ZIG\'s Blackhole</string>
     <string name="zig_blackhole_subtitle">Kerr–Schild Null-Geodesic Simulator</string>
     <string name="zig_blackhole_description">Interactive WebGL2 Kerr–Schild black hole, TON 618 quasar, and binary black-hole merger simulator with free-fall horizon plunge, EHT 230 GHz filter, and relativistic accretion physics.</string>
+
+    <!-- Settings menu groups -->
+    <string name="settings_group_general">GENERAL</string>
+    <string name="settings_group_appearance">APPEARANCE</string>
+    <string name="settings_group_sky_science">SKY &amp; SCIENCE</string>
+    <string name="settings_group_about">ABOUT</string>
+    <string name="settings_back_to_menu">Settings</string>
+
+    <!-- About ZIG -->
+    <string name="settings_about_title">About ZIG</string>
+    <string name="about_tagline">Offline Astronomy Companion</string>
+    <string name="about_version_label">Version</string>
+    <string name="about_desc">ZIG turns your phone into a pocket observatory: a scientific sky map, real-time AR identification of stars and satellites, Moon phases and eclipses, ISS pass tracking, a time machine for any moment in history, and a gravity sandbox — all fully offline, in Persian and English.</string>
+    <string name="about_creator_title">CREATOR &amp; DEVELOPER</string>
+    <string name="about_creator_name">Ali Jafari</string>
+    <string name="about_contact_telegram">Contact on Telegram</string>
+    <string name="about_copyright">© 2026 Ali Jafari. All rights reserved.</string>
 </resources>
