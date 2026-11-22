@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -64,11 +65,11 @@ import kotlin.math.sqrt
 /*                                                                     */
 /*  Inside the capsule runs the same idea as the WebGL fluid preview   */
 /*  (Pavel Dobryakov, WebGL-Fluid-Simulation) on the CPU: Jos Stam     */
-/*  stable fluids. The dye is drawn as a white ground that thickens    */
-/*  into a deep -> bright gradient, and a fluid "lens" (a pill of dye) */
-/*  flows between tabs: it stretches toward the destination, then the  */
-/*  trailing edge snaps shut. Each UI gives the dye its own colours,   */
-/*  so the bar is recognisably the same design in every skin.          */
+/*  stable fluids: Gaussian splats, curl + vorticity confinement for   */
+/*  the natural swirls, a Jacobi pressure solve, gentle dissipation.   */
+/*  The dye is drawn as burgundy ink (#660033) over a white ground,    */
+/*  and a fluid "lens" (a pill of dye) flows between tabs: it stretches */
+/*  toward the destination, then the trailing edge snaps shut.         */
 /* ------------------------------------------------------------------ */
 
 /** The dye recipe of the fluid: a deep companion, the primary colour, and the lens hairline. */
@@ -107,6 +108,14 @@ data class FluidNavSpec(
 /*  Stable fluids (Jos Stam), compact CPU version                      */
 /* ------------------------------------------------------------------ */
 
+/** WebGL-Fluid-Simulation defaults, translated to the CPU grid. */
+private const val PRESSURE_ITERATIONS = 20
+private const val PRESSURE_DECAY = 0.8f
+private const val VORTICITY = 30f
+
+/** Velocity ceiling in uv/sec — the original clamps at +-1000 texels/sec. */
+private const val MAX_FLOW = 12f
+
 class StableFluid(private val w: Int, private val h: Int, private val style: FluidDyeStyle) {
 
     private val n = w * h
@@ -116,64 +125,133 @@ class StableFluid(private val w: Int, private val h: Int, private val style: Flu
     private val u0 = FloatArray(n)
     private val v0 = FloatArray(n)
     private val dye = FloatArray(n)
-    private val p = FloatArray(n)
+    private val dye0 = FloatArray(n)
+    private val curl = FloatArray(n)
     private val div = FloatArray(n)
+    private val p = FloatArray(n)
 
     private val bitmap: Bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     private val image = bitmap.asImageBitmap()
     private val pixels = IntArray(n)
 
-    /** Radius/velocity/dye splat in normalised (0..1) coordinates. */
+    init {
+        // The capsule starts on the white ground — never a blank frame.
+        render()
+    }
+
+    /**
+     * Gaussian radius/velocity/dye splat in normalised (0..1) coordinates — the soft
+     * exp(-dot(p, p) / radius) puff of the WebGL original, round on screen.
+     */
     fun splat(x: Float, y: Float, radius: Float, velX: Float, velY: Float, dyeAmount: Float) {
-        val cx = (x * w).toInt()
-        val cy = (y * h).toInt()
-        val r = (radius * w).toInt().coerceAtLeast(1)
-        val r2 = r * r
-        for (j in -r..r) {
-            for (i in -r..r) {
-                val d2 = i * i + j * j
-                if (d2 > r2) continue
-                val xi = cx + i
-                val yi = cy + j
-                if (xi < 1 || xi >= w - 1 || yi < 1 || yi >= h - 1) continue
-                val idx = xi + yi * w
-                val fall = 1f - d2.toFloat() / r2
-                u[idx] += velX * fall
-                v[idx] += velY * fall
+        val cx = x * w - 0.5f
+        val cy = y * h - 0.5f
+        val sigma = (radius * h).coerceAtLeast(1f)
+        val reach = (sigma * 2.2f).toInt() + 1
+        val inv = 1f / (sigma * sigma)
+        for (j in maxOf(1, cy.toInt() - reach)..minOf(h - 2, cy.toInt() + reach)) {
+            for (i in maxOf(1, cx.toInt() - reach)..minOf(w - 2, cx.toInt() + reach)) {
+                val dx = i - cx
+                val dy = j - cy
+                val fall = exp(-(dx * dx + dy * dy) * inv)
+                if (fall < 0.01f) continue
+                val idx = i + j * w
+                u[idx] = (u[idx] + velX * fall).coerceIn(-MAX_FLOW, MAX_FLOW)
+                v[idx] = (v[idx] + velY * fall).coerceIn(-MAX_FLOW, MAX_FLOW)
                 dye[idx] += dyeAmount * fall
             }
         }
     }
 
+    /**
+     * One solver step — the WebGL-Fluid-Simulation recipe: curl, vorticity confinement (the
+     * natural swirls), divergence, pressure decay + Jacobi solve, gradient subtraction, then
+     * velocity advection and dye advection, both with gentle dissipation.
+     */
     fun step(dt: Float, dyeDissipation: Float, velocityDissipation: Float) {
-        project()
+        computeCurl()
+        vorticityConfinement(dt)
+        computeDivergence()
+        for (idx in 0 until n) p[idx] *= PRESSURE_DECAY
+        pressureSolve()
+        gradientSubtract()
         System.arraycopy(u, 0, u0, 0, n)
         System.arraycopy(v, 0, v0, 0, n)
         advect(u, u0, u0, v0, dt, velocityDissipation)
         advect(v, v0, u0, v0, dt, velocityDissipation)
-        project()
-        advect(dye, dye, u, v, dt, dyeDissipation)
+        System.arraycopy(dye, 0, dye0, 0, n)
+        advect(dye, dye0, u, v, dt, dyeDissipation)
         render()
     }
 
-    private fun project() {
-        val invDx = w.toFloat()
+    /** curl = dv/dx - du/dy — the seed of every little vortex. */
+    private fun computeCurl() {
         for (j in 1..h - 2) {
             var idx = 1 + j * w
             for (i in 1..w - 2) {
-                div[idx] = -0.5f * (u[idx + 1] - u[idx - 1] + v[idx + w] - v[idx - w]) * invDx
-                p[idx] = 0f
+                curl[idx] = 0.5f * ((v[idx + 1] - v[idx - 1]) - (u[idx + w] - u[idx - w]))
+                idx++
+            }
+        }
+    }
+
+    /** Vorticity confinement: puts the little swirls back that advection smears out. */
+    private fun vorticityConfinement(dt: Float) {
+        for (j in 1..h - 2) {
+            var idx = 1 + j * w
+            for (i in 1..w - 2) {
+                val l = curl[idx - 1]
+                val r = curl[idx + 1]
+                val t = curl[idx + w]
+                val b = curl[idx - w]
+                val c = curl[idx]
+                var fx = 0.5f * (abs(t) - abs(b))
+                var fy = 0.5f * (abs(r) - abs(l))
+                val len = sqrt(fx * fx + fy * fy) + 0.0001f
+                fx /= len
+                fy /= len
+                fx *= VORTICITY * c
+                fy *= -VORTICITY * c
+                u[idx] = (u[idx] + fx * dt).coerceIn(-MAX_FLOW, MAX_FLOW)
+                v[idx] = (v[idx] + fy * dt).coerceIn(-MAX_FLOW, MAX_FLOW)
+                idx++
+            }
+        }
+    }
+
+    /** Velocity divergence — how hard each cell pushes outward. */
+    private fun computeDivergence() {
+        for (j in 1..h - 2) {
+            var idx = 1 + j * w
+            for (i in 1..w - 2) {
+                div[idx] = 0.5f * (u[idx + 1] - u[idx - 1] + v[idx + w] - v[idx - w])
                 idx++
             }
         }
         setBnd(div)
-        setBnd(p)
-        linSolve(p, div, 1f, 4f, 18)
+    }
+
+    /** Twenty Jacobi pressure iterations — the incompressibility that makes the flow curl. */
+    private fun pressureSolve() {
+        repeat(PRESSURE_ITERATIONS) {
+            for (j in 1..h - 2) {
+                var idx = 1 + j * w
+                for (i in 1..w - 2) {
+                    p[idx] = (p[idx - 1] + p[idx + 1] + p[idx - w] + p[idx + w] - div[idx]) * 0.25f
+                    idx++
+                }
+            }
+            setBnd(p)
+        }
+    }
+
+    /** Subtract the pressure gradient so the velocity field stays divergence-light. */
+    private fun gradientSubtract() {
         for (j in 1..h - 2) {
             var idx = 1 + j * w
             for (i in 1..w - 2) {
-                u[idx] -= 0.5f * (p[idx + 1] - p[idx - 1]) * invDx
-                v[idx] -= 0.5f * (p[idx + w] - p[idx - w]) * invDx
+                u[idx] -= p[idx + 1] - p[idx - 1]
+                v[idx] -= p[idx + w] - p[idx - w]
                 idx++
             }
         }
@@ -181,20 +259,7 @@ class StableFluid(private val w: Int, private val h: Int, private val style: Flu
         setBnd(v)
     }
 
-    private fun linSolve(x: FloatArray, x0: FloatArray, a: Float, c: Float, iter: Int) {
-        val invC = 1f / c
-        for (k in 0 until iter) {
-            for (j in 1..h - 2) {
-                var idx = 1 + j * w
-                for (i in 1..w - 2) {
-                    x[idx] = (x0[idx] + a * (x[idx - 1] + x[idx + 1] + x[idx - w] + x[idx + w])) * invC
-                    idx++
-                }
-            }
-            setBnd(x)
-        }
-    }
-
+    /** Semi-Lagrangian bilinear advection with gentle dissipation. */
     private fun advect(
         d: FloatArray,
         d0: FloatArray,
@@ -247,14 +312,24 @@ class StableFluid(private val w: Int, private val h: Int, private val style: Flu
         x[w - 1 + (h - 1) * w] = 0.5f * (x[w - 2 + (h - 1) * w] + x[w - 1 + (h - 2) * w])
     }
 
-    /** Dye density -> white ground thickening into the skin's deep -> bright gradient. */
+    /**
+     * Dye density -> burgundy ink over a white ground. Thin dye reads as light wisps, the body
+     * thickens into the primary #660033, and the densest cores settle toward the deep companion
+     * — so the fluid always shows its structure instead of flattening into a dark slab.
+     */
     private fun render() {
+        val bright = style.bright
+        val deep = style.deep
         for (idx in 0 until n) {
-            val t = (dye[idx] * 1.1f).coerceIn(0f, 1f)
-            val body = smoothstep(0.03f, 0.55f, t)
-            val r = lerp(255f, lerp(style.deep.red * 255f, style.bright.red * 255f, t), body).toInt()
-            val g = lerp(255f, lerp(style.deep.green * 255f, style.bright.green * 255f, t), body).toInt()
-            val b = lerp(255f, lerp(style.deep.blue * 255f, style.bright.blue * 255f, t), body).toInt()
+            val d = dye[idx].coerceAtLeast(0f)
+            val cover = 1f - exp(-d * 1.9f)
+            val core = smoothstep(0.55f, 1f, cover)
+            val inkR = lerp(bright.red, deep.red, core)
+            val inkG = lerp(bright.green, deep.green, core)
+            val inkB = lerp(bright.blue, deep.blue, core)
+            val r = (lerp(1f, inkR, cover) * 255f).toInt().coerceIn(0, 255)
+            val g = (lerp(1f, inkG, cover) * 255f).toInt().coerceIn(0, 255)
+            val b = (lerp(1f, inkB, cover) * 255f).toInt().coerceIn(0, 255)
             pixels[idx] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
         }
         bitmap.setPixels(pixels, 0, w, 0, 0, w, h)
@@ -333,7 +408,7 @@ internal class FluidLensState {
  */
 class FluidNavLensHost internal constructor(private val style: FluidDyeStyle) {
 
-    internal val fluid = StableFluid(64, 30, style)
+    internal val fluid = StableFluid(128, 24, style)
     internal val lens = FluidLensState()
     internal val cellGeometry = mutableStateMapOf<Int, Pair<Float, Float>>()
     internal var barHeightPx by mutableFloatStateOf(0f)
@@ -369,22 +444,23 @@ class FluidNavLensHost internal constructor(private val style: FluidDyeStyle) {
             delay(FLOW_DELAY_MS)
             lens.tRight = cell.second
         }
-        // push dye along the direction of travel
+        // push dye along the direction of travel — a gentle stroke, not a jet
         val push = if (dirRight) 8f else -8f
         repeat(8) { k ->
-            fluid.splat(0.2f + 0.6f * k / 7f, 0.5f, 0.12f, push, 0f, 1.2f)
+            fluid.splat(0.2f + 0.6f * k / 7f, 0.5f, 0.10f, push * 0.2f, 0f, 0.8f)
         }
     }
 
     internal fun seed() {
+        // A ribbon of dye across the capsule — light enough to show its wisps and swirls.
         repeat(14) { i ->
             fluid.splat(
                 x = 0.15f + 0.7f * i / 13f,
                 y = 0.5f + 0.25f * (if (i % 2 == 0) 1f else -1f),
-                radius = 0.22f,
-                velX = if (i % 2 == 0) 6f else -6f,
+                radius = 0.17f,
+                velX = if (i % 2 == 0) 1.8f else -1.8f,
                 velY = 0f,
-                dyeAmount = 1.6f,
+                dyeAmount = 1.1f,
             )
         }
     }
@@ -393,10 +469,10 @@ class FluidNavLensHost internal constructor(private val style: FluidDyeStyle) {
         fluid.splat(
             x = 0.15f + 0.7f * ((i * 37 % 100) / 100f),
             y = 0.2f + 0.6f * ((i * 53 % 100) / 100f),
-            radius = 0.16f,
-            velX = if (i % 2 == 0) 5f else -5f,
-            velY = 2f,
-            dyeAmount = 0.9f,
+            radius = 0.15f,
+            velX = if (i % 2 == 0) 1.2f else -1.2f,
+            velY = 0.6f,
+            dyeAmount = 1.1f,
         )
     }
 }
@@ -469,7 +545,7 @@ fun rememberFluidNavLensHost(style: FluidDyeStyle, selectedIndex: Int): FluidNav
             } else {
                 elapsed += dt
             }
-            host.fluid.step(dt, dyeDissipation = 0.25f, velocityDissipation = 0.05f)
+            host.fluid.step(dt, dyeDissipation = 0.25f, velocityDissipation = 0.2f)
             host.drawTick++
             if (!fluidRunsLive && (calm >= SETTLE_SECONDS || alive >= HARD_CAP_SECONDS)) break
         }

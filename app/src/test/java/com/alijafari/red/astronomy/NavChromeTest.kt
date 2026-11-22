@@ -51,6 +51,14 @@ class NavChromeTest {
         // The sim lives continuously on devices with the design's 420 ms fill pulses.
         assertTrue("the dye keeps alive with ambient splats", engine.contains("fun ambientSplat("))
         assertTrue("live on devices, settled under the harness", engine.contains("fluidRunsLive"))
+        // The natural flow: the WebGL-Fluid-Simulation recipe — Gaussian splats, curl and
+        // vorticity confinement, a Jacobi pressure solve, and ink over a white ground so the
+        // dye always shows its wisps instead of flattening into a dark slab.
+        assertTrue("gaussian splats", engine.contains("exp(-(dx * dx + dy * dy) * inv)"))
+        assertTrue("curl", engine.contains("computeCurl"))
+        assertTrue("vorticity confinement", engine.contains("vorticityConfinement"))
+        assertTrue("pressure jacobi", engine.contains("PRESSURE_ITERATIONS"))
+        assertTrue("ink over a white ground", engine.contains("1f - exp(-d"))
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
             assertTrue("$name runs the shared fluid lens", bar.contains("rememberFluidNavLensHost("))
             assertTrue("$name draws the fluid layer", bar.contains("FluidNavLensLayer("))
