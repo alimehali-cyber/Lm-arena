@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.ui.components
 
 import android.content.Context
+import androidx.compose.ui.input.pointer.pointerInput
 import com.alijafari.red.astronomy.ui.components.SafeAppLogo
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
@@ -126,12 +127,6 @@ private val BORTLE_CLASSES = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
-import androidx.compose.ui.input.pointer.pointerInput
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 fun SettingsDialog(
     uiState: MainUiState,
     viewModel: MainViewModel,
@@ -233,7 +228,7 @@ fun SettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 ExpandableSettingsSection(
-                    title = stringResource(R.string.ui_style_setting),
+                    title = stringResource(R.string.ui_style_title),
                     currentValueLabel = uiStyleLabel,
                     icon = Icons.Outlined.DesignServices,
                     isExpanded = isUiStyleExpanded,
@@ -268,7 +263,7 @@ fun SettingsDialog(
                 }
                 
                 ExpandableSettingsSection(
-                    title = "About",
+                    title = stringResource(R.string.about),
                     currentValueLabel = "App Info",
                     icon = Icons.Outlined.Info,
                     isExpanded = isAboutExpanded,

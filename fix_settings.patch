@@ -1,0 +1,10 @@
+--- app/src/main/java/com/alijafari/red/astronomy/ui/components/SettingsDialog.kt
++++ app/src/main/java/com/alijafari/red/astronomy/ui/components/SettingsDialog.kt
+@@ -124,6 +124,7 @@
+     )
+ )
+ 
++@OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun SettingsDialog(
+     uiState: MainUiState,
