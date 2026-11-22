@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -290,6 +292,13 @@ private const val K_LENS = 160f
 private const val ZETA_LENS = 0.55f
 private const val FLOW_DELAY_MS = 210L
 
+/**
+ * The sim stays alive while the liquid moves and for this long after it calms, then freezes into a
+ * still lens until the next tap — the bar never burns a core between interactions.
+ */
+private const val SETTLE_SECONDS = 2.5f
+private const val HARD_CAP_SECONDS = 8f
+
 internal class FluidLensState {
     var left by mutableFloatStateOf(0f)
     var right by mutableFloatStateOf(0f)
@@ -310,6 +319,9 @@ class FluidNavLensHost internal constructor(private val style: FluidDyeStyle) {
     internal val lens = FluidLensState()
     internal val cellGeometry = mutableStateMapOf<Int, Pair<Float, Float>>()
     internal var barHeightPx by mutableFloatStateOf(0f)
+
+    /** Bumped to wake the frame loop for another burst of liquid motion. */
+    internal var lifeTick by mutableIntStateOf(0)
 
     /** Tracks where a cell sits in the bar so the lens can flow to it. */
     internal fun cellGeometryModifier(index: Int): Modifier = Modifier.onGloballyPositioned { coords ->
@@ -370,30 +382,38 @@ class FluidNavLensHost internal constructor(private val style: FluidDyeStyle) {
 
 /**
  * Creates and keeps one bar's fluid alive: seeds the capsule with dye, flows the lens when the
- * selection changes, and advances the springs and the fluid every frame.
+ * selection changes, and advances the springs and the fluid while the liquid moves — the sim then
+ * rests in a still lens until the next interaction wakes it.
  */
 @Composable
 fun rememberFluidNavLensHost(style: FluidDyeStyle, selectedIndex: Int): FluidNavLensHost {
     val host = remember(style) { FluidNavLensHost(style) }
     val selectedIndexState = rememberUpdatedState(selectedIndex)
 
-    // Seed the capsule so it starts full of dye.
-    LaunchedEffect(host) { host.seed() }
+    // Seed the capsule so it starts full of dye, and wake the sim.
+    LaunchedEffect(host) {
+        host.seed()
+        host.lifeTick++
+    }
 
     // Flow: stretch toward the new tab, then snap the trailing edge shut.
     LaunchedEffect(host, selectedIndex) {
         val cell = host.cellGeometry[selectedIndex] ?: return@LaunchedEffect
+        host.lifeTick++
         host.flowTo(cell)
     }
 
-    // Frame loop: springs + fluid + a gentle ambient pulse to keep the dye alive.
-    LaunchedEffect(host) {
+    // Frame loop: springs + fluid + gentle ambient pulses, alive while the liquid moves and for a
+    // short settle after — then the sim rests until the next interaction wakes it.
+    LaunchedEffect(host, host.lifeTick) {
         var last = 0L
+        var calm = 0f
+        var alive = 0f
         var elapsed = 0f
         var pulse = 0
         while (isActive) {
-            withFrameNanos { t ->
-                val dt = if (last == 0L) 0.016f
+            val dt = withFrameNanos { t ->
+                val d = if (last == 0L) 0.016f
                 else ((t - last) / 1_000_000_000f).coerceIn(0.001f, 0.033f)
                 last = t
                 if (!host.lens.initialized) {
@@ -408,18 +428,25 @@ fun rememberFluidNavLensHost(style: FluidDyeStyle, selectedIndex: Int): FluidNav
                 }
                 val sq = sqrt(K_LENS)
                 val aL = -K_LENS * (host.lens.left - host.lens.tLeft) - 2f * ZETA_LENS * sq * host.lens.vLeft
-                host.lens.vLeft += aL * dt
-                host.lens.left += host.lens.vLeft * dt
+                host.lens.vLeft += aL * d
+                host.lens.left += host.lens.vLeft * d
                 val aR = -K_LENS * (host.lens.right - host.lens.tRight) - 2f * ZETA_LENS * sq * host.lens.vRight
-                host.lens.vRight += aR * dt
-                host.lens.right += host.lens.vRight * dt
-                elapsed += dt
-                if (elapsed >= 0.42f) {
-                    elapsed = 0f
-                    host.ambientSplat(pulse++)
-                }
-                host.fluid.step(dt, dyeDissipation = 0.25f, velocityDissipation = 0.05f)
+                host.lens.vRight += aR * d
+                host.lens.right += host.lens.vRight * d
+                d
             }
+            alive += dt
+            val lens = host.lens
+            val moving = abs(lens.left - lens.tLeft) > 0.4f || abs(lens.right - lens.tRight) > 0.4f ||
+                abs(lens.vLeft) > 0.4f || abs(lens.vRight) > 0.4f
+            if (moving) calm = 0f else calm += dt
+            if (elapsed + dt >= 0.42f) {
+                elapsed = 0f
+                host.ambientSplat(pulse++)
+            } else {
+                elapsed += dt
+            }
+            if (calm >= SETTLE_SECONDS || alive >= HARD_CAP_SECONDS) break
         }
     }
     return host
