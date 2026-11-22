@@ -54,7 +54,7 @@ import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /** Three quarters of the old 62 dp dock, so the settings bubble has room beside it. */
-private val AETHER_NAV_HEIGHT = 46.dp
+private val AETHER_NAV_HEIGHT = 64.dp
 
 private data class AetherDockTab(
     val index: Int,
@@ -89,7 +89,7 @@ fun AetherFloatingNavBar(
     }
 
     // A pillar: half the bar's height at each end, drawn with the app's squircle rules.
-    val shape = squircleShape(RedCornerRadius.pill)
+    val shape = androidx.compose.foundation.shape.CircleShape
     Box(modifier.testTag("floating_bottom_bar")) {
         Row(
             modifier = Modifier
@@ -198,7 +198,7 @@ fun AetherSettingsBubble(
     modifier: Modifier = Modifier
 ) {
     val palette = AetherTheme.palette
-    val shape = squircleShape(RedCornerRadius.pill)
+    val shape = androidx.compose.foundation.shape.CircleShape
     Box(
         modifier = modifier
             .size(AETHER_NAV_HEIGHT)

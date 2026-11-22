@@ -509,12 +509,10 @@ class MainActivity : ComponentActivity() {
                             .splashReveal(splashState, SplashRevealRole.NavigationBar)
                         Row(
                             modifier = chromeModifier,
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val navModifier = Modifier.fillMaxWidth(
-                                com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_WIDTH_FRACTION
-                            )
+                            val navModifier = Modifier.wrapContentWidth()
                             when (uiState.uiStyle) {
                                 AppUiStyle.AETHER -> AetherFloatingNavBar(
                                     selectedTab = uiState.selectedTab,
@@ -607,24 +605,24 @@ class MainActivity : ComponentActivity() {
                           )
                       }
 
-                      if (uiState.showSettingsDialog) {
-                          when (uiState.uiStyle) {
-                              AppUiStyle.AETHER -> AetherSettingsModal(
-                                  uiState = uiState,
-                                  viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
-                              )
-                              AppUiStyle.SPATIAL -> SpatialSettingsModal(
-                                  uiState = uiState,
-                                  viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
-                              )
-                              AppUiStyle.DEFAULT -> SettingsDialog(
-                                  uiState = uiState,
-                                  viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
-                              )
-                          }
+                      AnimatedVisibility(
+                          visible = uiState.showSettingsDialog,
+                          enter = scaleIn(
+                              animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f),
+                              initialScale = 0.0f,
+                              transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.85f, 0.95f)
+                          ) + fadeIn(tween(250)),
+                          exit = scaleOut(
+                              animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                              targetScale = 0.0f,
+                              transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.85f, 0.95f)
+                          ) + fadeOut(tween(200))
+                      ) {
+                          SettingsDialog(
+                              uiState = uiState,
+                              viewModel = viewModel,
+                              onDismiss = { viewModel.setShowSettingsDialog(false) }
+                          )
                       }
 
                     // The monument pages. Drawn last, above the screens, the floating navigation bar

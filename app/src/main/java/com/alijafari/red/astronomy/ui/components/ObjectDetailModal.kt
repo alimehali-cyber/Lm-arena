@@ -396,14 +396,14 @@ fun ObjectDetailModal(
                 RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    color = obs.level.color.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, obs.level.color.copy(alpha = 0.3f)),
+                    color = androidx.compose.ui.graphics.Color.Transparent,
+                    
                     elevation = RedElevation.none,
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(24.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -474,13 +474,13 @@ fun ObjectDetailModal(
                 RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    
+                    color = androidx.compose.ui.graphics.Color.Transparent,
                     elevation = RedElevation.none,
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -520,8 +520,8 @@ fun ObjectDetailModal(
                         }
                     }
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -568,13 +568,13 @@ fun ObjectDetailModal(
                     RedSurface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = squircleShape(RedCornerRadius.window),
-                        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.24f)),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        
+                        color = androidx.compose.ui.graphics.Color.Transparent,
                         elevation = RedElevation.none,
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.padding(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -633,8 +633,8 @@ fun ObjectDetailModal(
                             }
                         }
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.padding(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -701,13 +701,13 @@ fun ObjectDetailModal(
                 RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    
+                    color = androidx.compose.ui.graphics.Color.Transparent,
                     elevation = RedElevation.none,
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -772,8 +772,8 @@ fun ObjectDetailModal(
                         }
                     }
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -846,13 +846,13 @@ fun ObjectDetailModal(
                     RedSurface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = squircleShape(RedCornerRadius.window),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        
+                        color = androidx.compose.ui.graphics.Color.Transparent,
                         elevation = RedElevation.none,
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.padding(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -891,8 +891,8 @@ fun ObjectDetailModal(
                             }
                         }
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.padding(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -956,11 +956,11 @@ fun ObjectDetailModal(
                 RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                    
+                    color = androidx.compose.ui.graphics.Color.Transparent,
                     elevation = RedElevation.none,
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(24.dp)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1001,7 +1001,7 @@ fun ObjectDetailModal(
                             }
                         }
                     }
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(24.dp)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1075,7 +1075,7 @@ fun ObjectDetailModal(
                 Text(text = if (isFa) "تنظیم هشدار رصد ${celestialObj.nameFa}" else "Set Observation Alert for ${celestialObj.nameEn}")
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     Text(
                         text = if (isFa) "زمان‌بندی ترانزیت (اوج ارتفاع): ${riseSetTransit.transitTimeStr}"
                         else "Transit Time: ${riseSetTransit.transitTimeStr}",
@@ -1124,7 +1124,7 @@ fun ObjectDetailModal(
                 Text(text = if (isFa) "ثبت رصد جدید" else "New Observation Entry")
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     Text(
                         text = if (isFa) "یادداشت رصد برای ${celestialObj.nameFa}:" else "Notes for ${celestialObj.nameEn}:",
                         style = MaterialTheme.typography.bodyMedium

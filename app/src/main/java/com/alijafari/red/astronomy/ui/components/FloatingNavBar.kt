@@ -40,10 +40,10 @@ import com.alijafari.red.astronomy.ui.theme.squircleShape
  * leaves instead of the bar spanning the whole screen.
  */
 const val BOTTOM_NAV_WIDTH_FRACTION = 0.75f
-val BOTTOM_NAV_HEIGHT: Dp = 48.dp
+val BOTTOM_NAV_HEIGHT: Dp = 64.dp
 
 /** The one silhouette every skin's dock wears: a squircle pill, ends fully rounded. */
-internal fun bottomNavShape() = squircleShape(RedCornerRadius.pill)
+internal fun bottomNavShape() = androidx.compose.foundation.shape.CircleShape
 
 data class NavItem(
     val titleRes: Int,

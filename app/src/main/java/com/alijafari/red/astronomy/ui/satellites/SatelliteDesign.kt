@@ -681,8 +681,8 @@ fun ZigSatCard(
     }
     val base = if (accent != null) accent.copy(alpha = 0.08f).compositeOver(tokens.cardAlt) else tokens.cardAlt
     if (tokens.skin == SatSkin.DEFAULT) {
-        RedSurface(modifier = tagged.fillMaxWidth(), shape = shape, color = base,
-            border = BorderStroke(1.dp, accent?.copy(alpha = 0.40f) ?: tokens.border),
+        RedSurface(modifier = tagged.fillMaxWidth(), shape = shape, color = androidx.compose.ui.graphics.Color.Transparent,
+            
             elevation = 0.dp, onClick = onClick) { Column(content = content) }
     } else {
         Column(tagged.fillMaxWidth().satMaterial(tokens, kind, shape, accent = accent)

@@ -60,7 +60,7 @@ import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /** Three quarters of the old 64 dp dock, so the settings bubble has room beside it. */
-private val SPATIAL_NAV_HEIGHT = 48.dp
+private val SPATIAL_NAV_HEIGHT = 64.dp
 
 private data class SpatialNavTab(
     val index: Int,
@@ -94,7 +94,7 @@ fun SpatialFloatingNavBar(
     }
 
     // A pill: half the bar's height at each end, drawn with the app's squircle rules.
-    val dockShape = squircleShape(RedCornerRadius.pill)
+    val dockShape = CircleShape
     val rimBrush = remember(palette) {
         Brush.verticalGradient(
             listOf(
@@ -283,7 +283,7 @@ fun SpatialSettingsBubble(
     modifier: Modifier = Modifier
 ) {
     val palette = SpatialTheme.palette
-    val shape = squircleShape(RedCornerRadius.pill)
+    val shape = CircleShape
     val rim = remember(palette) {
         Brush.verticalGradient(
             listOf(palette.rimTopHighlight, palette.rimSideBorder, palette.rimBottomReflection)

@@ -284,8 +284,8 @@ private fun DetailHero(
         accent = if (tokens.skin == SatSkin.AETHER) tokens.timeAccent else null)) {
         SatellitePhotoPanel(satelliteItem, tokens, isFa)
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             if (!isOnline || staleBadgeText != null) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -328,7 +328,7 @@ private fun DetailHero(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 Box(
                     modifier = Modifier
@@ -477,7 +477,7 @@ private fun DetailTelemetryPanel(state: SatelliteLiveState, tokens: ZigSatTokens
     var expanded by remember { mutableStateOf(false) }
     val topo = state.topocentric
     ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             SatText(stringResource(R.string.sat_telemetry), tokens.inkPrimary, size = 18, strong = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TelemetryHeroTile(stringResource(R.string.sat_altitude), SatFmt.kilometers(topo.satAltKm, isFa),
@@ -647,8 +647,8 @@ private fun DetailVisibilityPanel(
 
     ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Text(
                 text = if (isFa) "آیا با چشم دیده می‌شود؟" else "Naked-eye visibility assessment",
@@ -788,8 +788,8 @@ private fun DetailDossier(
 
     ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Row(
                 modifier = Modifier
