@@ -38,30 +38,21 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_HEIGHT
 import com.alijafari.red.astronomy.ui.components.BOTTOM_SETTINGS_SIZE
-import com.alijafari.red.astronomy.ui.components.FluidDyeStyle
+import com.alijafari.red.astronomy.ui.components.BurgundyFluidDye
 import com.alijafari.red.astronomy.ui.components.FluidNavItemsRow
 import com.alijafari.red.astronomy.ui.components.FluidNavLensLayer
 import com.alijafari.red.astronomy.ui.components.FluidNavSpec
 import com.alijafari.red.astronomy.ui.components.rememberFluidNavLensHost
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 
-/**
- * The Spatial dye: a dreamy pastel neon fluid — deep space violet #4A2A8C settling into the
- * Spatial neon rose #FFB0D0 over a white ground. This is what makes the Spatial Dreamscape bar
- * unique.
- */
-private val SpatialFluidDye = FluidDyeStyle(
-    deep = Color(0xFF4A2A8C),
-    bright = Color(0xFFFFB0D0),
-    stroke = Color(0xFFFFB0D0).copy(alpha = 0.16f),
-)
+
 
 /**
  * VisionOS Floating Spatial Glass Fluid Navigation Capsule.
  *
- * The fluid pill design in Spatial colours: a frosted G2 capsule with top-edge specular rim
- * lighting and a pastel neon dye lens (#4A2A8C -> #FFB0D0) that flows between tabs like liquid
- * light, travelling with the circular settings button as one centred cluster.
+ * The fluid pill design in Spatial chrome: a frosted G2 capsule with top-edge specular rim
+ * lighting and the burgundy dye lens (#660033) that flows between tabs like liquid light,
+ * travelling with the circular settings button as one centred cluster.
  */
 @Composable
 fun SpatialFloatingNavBar(
@@ -70,7 +61,7 @@ fun SpatialFloatingNavBar(
     modifier: Modifier = Modifier
 ) {
     val palette = SpatialTheme.palette
-    val host = rememberFluidNavLensHost(SpatialFluidDye, selectedTab)
+    val host = rememberFluidNavLensHost(BurgundyFluidDye, selectedTab)
     val dockShape = RedShapes.capsule
     val rimBrush = remember(palette) {
         Brush.verticalGradient(

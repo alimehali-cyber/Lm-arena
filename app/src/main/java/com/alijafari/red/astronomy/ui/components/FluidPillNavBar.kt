@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.ui.components
 
 import android.graphics.Bitmap
+import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -70,7 +71,7 @@ import kotlin.math.sqrt
 /*  so the bar is recognisably the same design in every skin.          */
 /* ------------------------------------------------------------------ */
 
-/** The dye recipe that makes each UI's fluid unique. */
+/** The dye recipe of the fluid: a deep companion, the primary colour, and the lens hairline. */
 data class FluidDyeStyle(
     /** The colour thick dye settles into. */
     val deep: Color,
@@ -78,6 +79,16 @@ data class FluidDyeStyle(
     val bright: Color,
     /** The hairline drawn around the lens pill. */
     val stroke: Color,
+)
+
+/**
+ * The primary fluid colour — the design's burgundy: #2E0019 deep settling into **#660033** over a
+ * white ground. Every UI wears this dye; each skin stays unique through its chrome instead.
+ */
+val BurgundyFluidDye = FluidDyeStyle(
+    deep = Color(0xFF2E0019),
+    bright = Color(0xFF660033),
+    stroke = Color(0xFF660033).copy(alpha = 0.14f),
 )
 
 /**
@@ -299,6 +310,13 @@ private const val FLOW_DELAY_MS = 210L
 private const val SETTLE_SECONDS = 2.5f
 private const val HARD_CAP_SECONDS = 8f
 
+/**
+ * On devices the fluid lives continuously. Under the Robolectric harness (fingerprint
+ * "robolectric") a live frame loop keeps the compose clock permanently non-idle, so there the sim
+ * settles into a still lens instead.
+ */
+private val fluidRunsLive: Boolean = !Build.FINGERPRINT.equals("robolectric", ignoreCase = true)
+
 internal class FluidLensState {
     var left by mutableFloatStateOf(0f)
     var right by mutableFloatStateOf(0f)
@@ -322,6 +340,9 @@ class FluidNavLensHost internal constructor(private val style: FluidDyeStyle) {
 
     /** Bumped to wake the frame loop for another burst of liquid motion. */
     internal var lifeTick by mutableIntStateOf(0)
+
+    /** Bumped every animated frame so the dye visibly lives even when the lens is at rest. */
+    internal var drawTick by mutableIntStateOf(0)
 
     /** Tracks where a cell sits in the bar so the lens can flow to it. */
     internal fun cellGeometryModifier(index: Int): Modifier = Modifier.onGloballyPositioned { coords ->
@@ -382,8 +403,8 @@ class FluidNavLensHost internal constructor(private val style: FluidDyeStyle) {
 
 /**
  * Creates and keeps one bar's fluid alive: seeds the capsule with dye, flows the lens when the
- * selection changes, and advances the springs and the fluid while the liquid moves — the sim then
- * rests in a still lens until the next interaction wakes it.
+ * selection changes, and advances the springs and the fluid every frame — the dye keeps living on
+ * devices (a fill pulse every 420 ms), and settles to rest only under the test harness.
  */
 @Composable
 fun rememberFluidNavLensHost(style: FluidDyeStyle, selectedIndex: Int): FluidNavLensHost {
@@ -403,8 +424,9 @@ fun rememberFluidNavLensHost(style: FluidDyeStyle, selectedIndex: Int): FluidNav
         host.flowTo(cell)
     }
 
-    // Frame loop: springs + fluid + gentle ambient pulses, alive while the liquid moves and for a
-    // short settle after — then the sim rests until the next interaction wakes it.
+    // Frame loop: springs + fluid + gentle ambient fill pulses. On devices the liquid lives
+    // continuously, exactly like the design's keep-alive; under the test harness the sim settles
+    // into a still lens so the compose clock can report idle.
     LaunchedEffect(host, host.lifeTick) {
         var last = 0L
         var calm = 0f
@@ -440,13 +462,16 @@ fun rememberFluidNavLensHost(style: FluidDyeStyle, selectedIndex: Int): FluidNav
             val moving = abs(lens.left - lens.tLeft) > 0.4f || abs(lens.right - lens.tRight) > 0.4f ||
                 abs(lens.vLeft) > 0.4f || abs(lens.vRight) > 0.4f
             if (moving) calm = 0f else calm += dt
+            // Keep-alive: a gentle fill pulse now and then, so the capsule's dye never dies down.
             if (elapsed + dt >= 0.42f) {
                 elapsed = 0f
                 host.ambientSplat(pulse++)
             } else {
                 elapsed += dt
             }
-            if (calm >= SETTLE_SECONDS || alive >= HARD_CAP_SECONDS) break
+            host.fluid.step(dt, dyeDissipation = 0.25f, velocityDissipation = 0.05f)
+            host.drawTick++
+            if (!fluidRunsLive && (calm >= SETTLE_SECONDS || alive >= HARD_CAP_SECONDS)) break
         }
     }
     return host
@@ -468,6 +493,8 @@ fun FluidNavLensLayer(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
+            @Suppress("UNUSED_EXPRESSION")
+            host.drawTick // subscribe: the dye redraws while the sim lives
             val lensHeight = host.barHeightPx - 8f
             if (host.lens.initialized && lensHeight > 0f && host.lens.right > host.lens.left) {
                 host.fluid.drawLens(

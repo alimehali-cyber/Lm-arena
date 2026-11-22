@@ -697,25 +697,12 @@ private fun AetherSkyHeroSection(
                     modifier = Modifier.testTag("top_search_button")
                 )
 
-                Row(
-                    modifier = Modifier
-                        .clip(RedShapes.capsule)
-                        .background(Color(0x5408080C))
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .specularRimBorder(shape = RedShapes.capsule)
-                        .clickable { viewModel.setShowSkyViewer(true) }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .testTag("home_sky_expand_button"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.FitScreen,
-                        contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open fullscreen sky",
-                        tint = Color.White,
-                        modifier = Modifier.size(15.dp)
-                    )
-                }
+                AetherOpticalIconLens(
+                    icon = Icons.Outlined.FitScreen,
+                    contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open fullscreen sky",
+                    onClick = { viewModel.setShowSkyViewer(true) },
+                    modifier = Modifier.testTag("home_sky_expand_button")
+                )
             }
         }
     }

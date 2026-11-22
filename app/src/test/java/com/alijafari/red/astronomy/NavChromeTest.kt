@@ -8,8 +8,8 @@ import org.junit.Test
 /**
  * The bottom chrome is the fluid pill design on every skin: a capsule whose CPU stable-fluid dye
  * lens flows between tabs, plus one circular settings button, close together in one centred
- * cluster at the bottom of the screen. Each UI gives the dye its own colours so the bar is unique
- * per skin while the design stays recognisable.
+ * cluster at the bottom of the screen. The fluid is primarily #660033 on every UI and lives
+ * continuously; each skin stays unique through its chrome.
  */
 class NavChromeTest {
 
@@ -43,22 +43,24 @@ class NavChromeTest {
     }
 
     @Test
-    fun everyUiWearsItsOwnUniqueDye() {
+    fun theFluidIsPrimarilyBurgundyAndTheSimLives() {
+        // The primary dye — the design's #660033 — lives in the shared engine.
+        assertTrue("the shared burgundy dye ships with the engine", engine.contains("val BurgundyFluidDye"))
+        assertTrue("primary #660033", engine.contains("0xFF660033"))
+        assertTrue("deep companion #2E0019", engine.contains("0xFF2E0019"))
+        // The sim lives continuously on devices with the design's 420 ms fill pulses.
+        assertTrue("the dye keeps alive with ambient splats", engine.contains("fun ambientSplat("))
+        assertTrue("live on devices, settled under the harness", engine.contains("fluidRunsLive"))
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
             assertTrue("$name runs the shared fluid lens", bar.contains("rememberFluidNavLensHost("))
             assertTrue("$name draws the fluid layer", bar.contains("FluidNavLensLayer("))
             assertTrue("$name lays its cells on the fluid", bar.contains("FluidNavItemsRow("))
-            assertTrue("$name declares a dye recipe", bar.contains("FluidDyeStyle("))
+            assertTrue("$name wears the primarily-#660033 dye", bar.contains("BurgundyFluidDye"))
         }
-        // Default is the design's burgundy fluid ...
-        assertTrue("wine deep", defaultBar.contains("0xFF2E0019"))
-        assertTrue("wine bright", defaultBar.contains("0xFF660033"))
-        // ... Aether is the crimson jewel fluid ...
-        assertTrue("aether deep", aetherBar.contains("0xFF2A0210"))
-        assertTrue("aether bright", aetherBar.contains("0xFF9E0B45"))
-        // ... and Spatial is the pastel neon fluid.
-        assertTrue("spatial deep", spatialBar.contains("0xFF4A2A8C"))
-        assertTrue("spatial bright", spatialBar.contains("0xFFFFB0D0"))
+        // Each UI stays unique through its chrome, not its dye.
+        assertTrue("default keeps the wine surface capsule", defaultBar.contains("RedSurface("))
+        assertTrue("aether keeps the specular rim glass", aetherBar.contains("specularRimBorder("))
+        assertTrue("spatial keeps the rim-lit spatial glass", spatialBar.contains("glassElevatedFill"))
     }
 
     @Test
@@ -113,6 +115,25 @@ class NavChromeTest {
             "com/alijafari/red/astronomy/ui/aether/AetherHomeScreen.kt",
         )) {
             assertFalse("$home still has the old top settings button", source(home).contains("top_settings_button"))
+        }
+    }
+
+    @Test
+    fun theHomeSkyExpandButtonIsACircleLikeTheSearchButton() {
+        for ((name, home) in listOf(
+            "default" to source("com/alijafari/red/astronomy/ui/screens/HomeScreen.kt"),
+            "spatial" to source("com/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen.kt"),
+            "aether" to source("com/alijafari/red/astronomy/ui/aether/AetherHomeScreen.kt"),
+        )) {
+            assertTrue("$name: search keeps its tag", home.contains("top_search_button"))
+            assertTrue("$name: the expand button keeps its tag", home.contains("home_sky_expand_button"))
+            assertTrue("$name: the expand button is the FitScreen glyph", home.contains("Icons.Outlined.FitScreen"))
+            assertFalse("$name: no capsule glyph left", home.contains("Icons.Rounded.Fullscreen") || home.contains("Icons.Outlined.OpenInFull"))
+            // Around the tag the button must be a circle: the circle surface on default/spatial,
+            // the same AetherOpticalIconLens circle as the search button on aether.
+            val around = home.substring(maxOf(0, home.indexOf("home_sky_expand_button") - 700), home.indexOf("home_sky_expand_button"))
+            val circle = if (name == "aether") "AetherOpticalIconLens(" else "CircleShape"
+            assertTrue("$name: the expand button is a $circle circle", around.contains(circle))
         }
     }
 

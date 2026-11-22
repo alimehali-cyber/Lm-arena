@@ -48,15 +48,7 @@ val BOTTOM_SETTINGS_SIZE: Dp = 56.dp
 /** The one silhouette every skin's dock wears: a true capsule, ends fully rounded. */
 internal fun bottomNavShape() = RedShapes.capsule
 
-/**
- * The Wine dye: the design's own burgundy fluid — deep #2E0019 settling into #660033 over a white
- * ground. This is what makes the Default UI's bar unique.
- */
-private val WineFluidDye = FluidDyeStyle(
-    deep = Color(0xFF2E0019),
-    bright = Color(0xFF660033),
-    stroke = Color(0xFF660033).copy(alpha = 0.14f),
-)
+
 
 @Composable
 fun FloatingBottomBar(
@@ -64,7 +56,7 @@ fun FloatingBottomBar(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val host = rememberFluidNavLensHost(WineFluidDye, selectedTab)
+    val host = rememberFluidNavLensHost(BurgundyFluidDye, selectedTab)
 
     Box(modifier.testTag("main_bottom_navigation")) {
         RedSurface(

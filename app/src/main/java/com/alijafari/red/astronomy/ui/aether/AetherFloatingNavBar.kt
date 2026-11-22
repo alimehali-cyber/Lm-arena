@@ -33,28 +33,20 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_HEIGHT
 import com.alijafari.red.astronomy.ui.components.BOTTOM_SETTINGS_SIZE
-import com.alijafari.red.astronomy.ui.components.FluidDyeStyle
+import com.alijafari.red.astronomy.ui.components.BurgundyFluidDye
 import com.alijafari.red.astronomy.ui.components.FluidNavItemsRow
 import com.alijafari.red.astronomy.ui.components.FluidNavLensLayer
 import com.alijafari.red.astronomy.ui.components.FluidNavSpec
 import com.alijafari.red.astronomy.ui.components.rememberFluidNavLensHost
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 
-/**
- * The Aether dye: a crimson jewel fluid — deep #2A0210 settling into the Aether signature #9E0B45.
- * This is what makes the Aether Telemetry UI's bar unique.
- */
-private val AetherFluidDye = FluidDyeStyle(
-    deep = Color(0xFF2A0210),
-    bright = Color(0xFF9E0B45),
-    stroke = Color(0xFF9E0B45).copy(alpha = 0.18f),
-)
+
 
 /**
- * Floating Aether Telemetry Fluid Capsule Dock: the fluid pill design in Aether colours — a
+ * Floating Aether Telemetry Fluid Capsule Dock: the fluid pill design in Aether chrome — a
  * frameless optical capsule (`FrostedGlassFill` `#14FFFFFF`) with razor-thin `1.dp` directional
- * specular rim border, a crimson glow shadow, and a crimson dye lens that flows between tabs,
- * pushing jewel-bright fluid along the direction of travel. Haptic feedback on every tap.
+ * specular rim border, a crimson glow shadow, and the burgundy dye lens (#660033) that flows
+ * between tabs, pushing fluid along the direction of travel. Haptic feedback on every tap.
  */
 @Composable
 fun AetherFloatingNavBar(
@@ -64,7 +56,7 @@ fun AetherFloatingNavBar(
 ) {
     val palette = AetherTheme.palette
     val haptics = LocalHapticFeedback.current
-    val host = rememberFluidNavLensHost(AetherFluidDye, selectedTab)
+    val host = rememberFluidNavLensHost(BurgundyFluidDye, selectedTab)
     val shape = RedShapes.capsule
 
     Box(modifier.testTag("floating_bottom_bar")) {
