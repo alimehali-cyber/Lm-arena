@@ -6,9 +6,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The bottom chrome is one capsule dock and one circular settings button, on every skin: a little
- * bigger than the previous generation, close together in one centred cluster at the bottom of the
- * screen, shown exactly where the dock is shown.
+ * The bottom chrome is the fluid pill design on every skin: a capsule whose CPU stable-fluid dye
+ * lens flows between tabs, plus one circular settings button, close together in one centred
+ * cluster at the bottom of the screen. Each UI gives the dye its own colours so the bar is unique
+ * per skin while the design stays recognisable.
  */
 class NavChromeTest {
 
@@ -19,23 +20,62 @@ class NavChromeTest {
 
     private fun source(relative: String): String = file("src/main", relative)
 
+    private val engine by lazy { source("com/alijafari/red/astronomy/ui/components/FluidPillNavBar.kt") }
     private val defaultBar by lazy { source("com/alijafari/red/astronomy/ui/components/FloatingNavBar.kt") }
     private val spatialBar by lazy { source("com/alijafari/red/astronomy/ui/spatial/SpatialFloatingNavBar.kt") }
     private val aetherBar by lazy { source("com/alijafari/red/astronomy/ui/aether/AetherFloatingNavBar.kt") }
     private val activity by lazy { source("com/alijafari/red/astronomy/MainActivity.kt") }
 
     @Test
-    fun everyDockIsABiggerCapsulePillAndEverySettingsButtonIsACircle() {
-        assertTrue("one shared width for all three skins", defaultBar.contains("const val BOTTOM_NAV_WIDTH_FRACTION = 0.72f"))
-        // A little bigger than the 48/48/46 generation: 56, 56 and 54.
-        assertTrue(defaultBar.contains("val BOTTOM_NAV_HEIGHT: Dp = 56.dp"))
-        assertTrue(spatialBar.contains("private val SPATIAL_NAV_HEIGHT = 56.dp"))
-        assertTrue(aetherBar.contains("private val AETHER_NAV_HEIGHT = 54.dp"))
-        assertTrue("one shared tight gap for the cluster", defaultBar.contains("val BOTTOM_NAV_GAP: Dp = 8.dp"))
+    fun theFluidEngineIsSharedAndTheLensFlowsBetweenTabs() {
+        // Jos Stam stable fluids on the CPU, the heart of the design.
+        assertTrue("the solver ships in the shared engine", engine.contains("class StableFluid"))
+        assertTrue("the design is documented as Jos Stam stable fluids", engine.contains("Jos Stam"))
+        // The two-edge spring: stretch toward the new tab, then the trailing edge snaps shut.
+        assertTrue("spring stiffness", engine.contains("K_LENS"))
+        assertTrue("spring damping", engine.contains("ZETA_LENS"))
+        assertTrue("the trailing edge waits before snapping shut", engine.contains("FLOW_DELAY_MS"))
+        // The dye is clipped to a pill and the flow pushes dye along the direction of travel.
+        assertTrue("lens is a pill clip", engine.contains("clipPath(pill)"))
+        assertTrue("flow pushes dye", engine.contains("val push = if (dirRight) 8f else -8f"))
+        assertTrue("the capsule is seeded full of dye", engine.contains("fun seed()"))
+        assertTrue("the dye stays alive with ambient splats", engine.contains("fun ambientSplat("))
+    }
+
+    @Test
+    fun everyUiWearsItsOwnUniqueDye() {
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
-            assertTrue("$name dock wears the squircle pill with fully rounded ends", bar.contains("squircleShape(RedCornerRadius.pill)"))
+            assertTrue("$name runs the shared fluid lens", bar.contains("rememberFluidNavLensHost("))
+            assertTrue("$name draws the fluid layer", bar.contains("FluidNavLensLayer("))
+            assertTrue("$name lays its cells on the fluid", bar.contains("FluidNavItemsRow("))
+            assertTrue("$name declares a dye recipe", bar.contains("FluidDyeStyle("))
+        }
+        // Default is the design's burgundy fluid ...
+        assertTrue("wine deep", defaultBar.contains("0xFF2E0019"))
+        assertTrue("wine bright", defaultBar.contains("0xFF660033"))
+        // ... Aether is the crimson jewel fluid ...
+        assertTrue("aether deep", aetherBar.contains("0xFF2A0210"))
+        assertTrue("aether bright", aetherBar.contains("0xFF9E0B45"))
+        // ... and Spatial is the pastel neon fluid.
+        assertTrue("spatial deep", spatialBar.contains("0xFF4A2A8C"))
+        assertTrue("spatial bright", spatialBar.contains("0xFFFFB0D0"))
+    }
+
+    @Test
+    fun everyDockIsTheFluidCapsuleAndEverySettingsButtonIsACircle() {
+        assertTrue("one shared width for all three skins", defaultBar.contains("const val BOTTOM_NAV_WIDTH_FRACTION = 0.72f"))
+        assertTrue("the capsule is the design's 64 dp", defaultBar.contains("val BOTTOM_NAV_HEIGHT: Dp = 64.dp"))
+        assertTrue("the cluster gap is the design's 10 dp", defaultBar.contains("val BOTTOM_NAV_GAP: Dp = 10.dp"))
+        assertTrue("the settings circle is the design's 56 dp", defaultBar.contains("val BOTTOM_SETTINGS_SIZE: Dp = 56.dp"))
+        for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
+            assertTrue("$name dock wears the true capsule", bar.contains("RedShapes.capsule"))
             assertTrue("$name settings button is a true circle", bar.contains("CircleShape"))
-            assertFalse("$name dock no longer spans the screen by itself", bar.contains(".navigationBarsPadding()"))
+            assertTrue("$name circle is addressable", bar.contains("testTag(\"bottom_settings_button\")"))
+            assertTrue("$name uses the shared capsule height", bar.contains("BOTTOM_NAV_HEIGHT"))
+            assertFalse("$name dock does not span the screen by itself", bar.contains(".navigationBarsPadding()"))
+            for (tag in listOf("nav_item_home", "nav_item_arsky", "nav_item_satellites", "nav_item_lab")) {
+                assertTrue("$name addresses $tag", bar.contains("\"$tag\""))
+            }
         }
     }
 
@@ -57,7 +97,6 @@ class NavChromeTest {
     fun theSettingsCircleSitsBesideTheDockOnEverySkin() {
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
             assertTrue("$name has its own settings circle", bar.contains("SettingsBubble("))
-            assertTrue("$name circle is addressable", bar.contains("testTag(\"bottom_settings_button\")"))
         }
         assertTrue(activity.contains("AetherSettingsBubble(onClick = openSettings)"))
         assertTrue(activity.contains("SpatialSettingsBubble(onClick = openSettings)"))
@@ -67,7 +106,7 @@ class NavChromeTest {
         assertTrue(block.substringBefore("// Dialogs and Modals").contains("FloatingSettingsBubble("))
         assertTrue("settings opens the same dialog", activity.contains("setShowSettingsDialog(true)"))
 
-        // The Home headers no longer own a settings button: it moved down to the chrome.
+        // The Home headers no longer own a settings button: it lives in the chrome.
         for (home in listOf(
             "com/alijafari/red/astronomy/ui/screens/HomeScreen.kt",
             "com/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen.kt",
@@ -78,9 +117,9 @@ class NavChromeTest {
     }
 
     @Test
-    fun theHudClearsTheBiggerDockAndThePreviewsShowTheSameChrome() {
+    fun theHudClearsTheDockAndThePreviewsShowTheSameChrome() {
         val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
-        assertTrue("the cards clear the 56 dp pill, not the old 48 dp one", stage.contains("bottomInset + 76.dp"))
+        assertTrue("the cards clear the 64 dp fluid capsule", stage.contains("bottomInset + 76.dp"))
         val previews = file("src/debug", "com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt")
         assertTrue(previews.contains("BOTTOM_NAV_WIDTH_FRACTION"))
         assertTrue(previews.contains("BOTTOM_NAV_GAP"))

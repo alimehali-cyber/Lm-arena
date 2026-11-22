@@ -1,23 +1,13 @@
 package com.alijafari.red.astronomy.ui.spatial
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -31,52 +21,47 @@ import androidx.compose.material.icons.outlined.SatelliteAlt
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
-import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_HEIGHT
+import com.alijafari.red.astronomy.ui.components.BOTTOM_SETTINGS_SIZE
+import com.alijafari.red.astronomy.ui.components.FluidDyeStyle
+import com.alijafari.red.astronomy.ui.components.FluidNavItemsRow
+import com.alijafari.red.astronomy.ui.components.FluidNavLensLayer
+import com.alijafari.red.astronomy.ui.components.FluidNavSpec
+import com.alijafari.red.astronomy.ui.components.rememberFluidNavLensHost
 import com.alijafari.red.astronomy.ui.theme.RedShapes
-import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
-import com.alijafari.red.astronomy.ui.theme.squircleShape
 
-/** A little taller than the 48 dp generation, matching the bigger centred chrome cluster. */
-private val SPATIAL_NAV_HEIGHT = 56.dp
-
-private data class SpatialNavTab(
-    val index: Int,
-    val labelRes: Int,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector,
-    val testTag: String
+/**
+ * The Spatial dye: a dreamy pastel neon fluid — deep space violet #4A2A8C settling into the
+ * Spatial neon rose #FFB0D0 over a white ground. This is what makes the Spatial Dreamscape bar
+ * unique.
+ */
+private val SpatialFluidDye = FluidDyeStyle(
+    deep = Color(0xFF4A2A8C),
+    bright = Color(0xFFFFB0D0),
+    stroke = Color(0xFFFFB0D0).copy(alpha = 0.16f),
 )
 
 /**
- * VisionOS Floating Spatial Glass Navigation Capsule.
+ * VisionOS Floating Spatial Glass Fluid Navigation Capsule.
  *
- * Floats above the bottom navigation inset inside a frosted G2 squircle-capsule dock with fully
- * rounded ends, a little taller than the previous generation, travelling with the circular settings
- * button as one centred cluster. Features top-edge specular rim lighting, fluid spring press
- * physics, and a pastel neon radial glow (`#FFB0D0`) behind the active destination.
+ * The fluid pill design in Spatial colours: a frosted G2 capsule with top-edge specular rim
+ * lighting and a pastel neon dye lens (#4A2A8C -> #FFB0D0) that flows between tabs like liquid
+ * light, travelling with the circular settings button as one centred cluster.
  */
 @Composable
 fun SpatialFloatingNavBar(
@@ -85,17 +70,8 @@ fun SpatialFloatingNavBar(
     modifier: Modifier = Modifier
 ) {
     val palette = SpatialTheme.palette
-    val tabs = remember {
-        listOf(
-            SpatialNavTab(4, R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home, "nav_item_home"),
-            SpatialNavTab(3, R.string.nav_arsky, Icons.Filled.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
-            SpatialNavTab(1, R.string.nav_satellites, Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
-            SpatialNavTab(0, R.string.nav_lab, Icons.Filled.Science, Icons.Outlined.Science, "nav_item_lab")
-        )
-    }
-
-    // A pill: half the bar's height at each end, drawn with the app's squircle rules.
-    val dockShape = squircleShape(RedCornerRadius.pill)
+    val host = rememberFluidNavLensHost(SpatialFluidDye, selectedTab)
+    val dockShape = RedShapes.capsule
     val rimBrush = remember(palette) {
         Brush.verticalGradient(
             listOf(
@@ -110,7 +86,7 @@ fun SpatialFloatingNavBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(SPATIAL_NAV_HEIGHT)
+                .height(BOTTOM_NAV_HEIGHT)
                 .testTag("main_bottom_navigation_surface")
                 .shadow(
                     elevation = 20.dp,
@@ -137,137 +113,19 @@ fun SpatialFloatingNavBar(
                 }
                 .border(BorderStroke(1.dp, rimBrush), dockShape)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(SPATIAL_NAV_HEIGHT)
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                tabs.forEach { tab ->
-                    val isSelected = selectedTab == tab.index
-                    SpatialNavTabPill(
-                        tab = tab,
-                        isSelected = isSelected,
-                        onClick = { onTabSelected(tab.index) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SpatialNavTabPill(
-    tab: SpatialNavTab,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val palette = SpatialTheme.palette
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    val scale by animateFloatAsState(
-        targetValue = when {
-            isPressed -> 0.92f
-            isSelected -> 1.03f
-            else -> 1.0f
-        },
-        animationSpec = spring(dampingRatio = 0.68f, stiffness = 380f),
-        label = "SpatialNavScale"
-    )
-
-    val contentTint by animateColorAsState(
-        targetValue = if (isSelected) palette.accentInk else palette.textSecondary,
-        animationSpec = tween(180),
-        label = "SpatialNavTint"
-    )
-
-    Box(
-        modifier = modifier
-            .scale(scale)
-            .then(
-                if (isSelected) {
-                    Modifier
-                        .drawBehind {
-                            // Pastel neon radial glow (#FFB0D0) beneath active tab pill
-                            val r = size.maxDimension * 0.70f
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(
-                                        SpatialNeonRose.copy(alpha = if (palette.isDark) 0.36f else 0.28f),
-                                        Color.Transparent
-                                    ),
-                                    center = center,
-                                    radius = r
-                                ),
-                                radius = r,
-                                center = center
-                            )
-                        }
-                        .clip(RedShapes.capsule)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    SpatialNeonRose.copy(alpha = if (palette.isDark) 0.26f else 0.24f),
-                                    SpatialWarmPeach.copy(alpha = if (palette.isDark) 0.16f else 0.18f)
-                                )
-                            )
-                        )
-                        .border(
-                            width = 1.dp,
-                            brush = Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.72f),
-                                    SpatialNeonRose.copy(alpha = 0.40f)
-                                )
-                            ),
-                            shape = RedShapes.capsule
-                        )
-                } else {
-                    Modifier.clip(RedShapes.capsule)
-                }
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-            .padding(vertical = 3.dp, horizontal = 2.dp)
-            .testTag(tab.testTag),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
-                contentDescription = stringResource(tab.labelRes),
-                tint = contentTint,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.height(1.dp))
-            Text(
-                text = stringResource(tab.labelRes),
-                style = RedTypographyTokens.caption.copy(
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 10.sp
-                ),
-                color = contentTint,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (isSelected) {
-                Spacer(modifier = Modifier.height(1.dp))
-                Box(
-                    modifier = Modifier
-                        .size(3.dp)
-                        .clip(CircleShape)
-                        .background(palette.accentInk)
+            FluidNavLensLayer(modifier = Modifier.fillMaxSize()) {
+                FluidNavItemsRow(
+                    host = host,
+                    selectedIndex = selectedTab,
+                    specs = listOf(
+                        FluidNavSpec(4, stringResource(R.string.nav_home), Icons.Filled.Home, Icons.Outlined.Home, "nav_item_home"),
+                        FluidNavSpec(3, stringResource(R.string.nav_arsky), Icons.Filled.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
+                        FluidNavSpec(1, stringResource(R.string.nav_satellites), Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
+                        FluidNavSpec(0, stringResource(R.string.nav_lab), Icons.Filled.Science, Icons.Outlined.Science, "nav_item_lab"),
+                    ),
+                    selectedContentColor = Color.White,
+                    unselectedContentColor = palette.textSecondary,
+                    onSelected = onTabSelected,
                 )
             }
         }
@@ -275,8 +133,8 @@ private fun SpatialNavTabPill(
 }
 
 /**
- * Settings, as a true circle tucked close beside the centred dock: same frosted glass material and
- * rim, so the dock and it read as one piece of chrome. It appears wherever the dock appears.
+ * Settings, as a true circle tucked close beside the centred fluid capsule: same frosted glass
+ * material and rim, so the dock and it read as one piece of chrome.
  */
 @Composable
 fun SpatialSettingsBubble(
@@ -292,7 +150,7 @@ fun SpatialSettingsBubble(
     }
     Box(
         modifier = modifier
-            .size(SPATIAL_NAV_HEIGHT)
+            .size(BOTTOM_SETTINGS_SIZE)
             .testTag("bottom_settings_button")
             .shadow(elevation = 20.dp, shape = shape, ambientColor = palette.ambientDropShadow,
                 spotColor = palette.ambientDropShadow)

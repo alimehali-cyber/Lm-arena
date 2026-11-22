@@ -1,60 +1,61 @@
 package com.alijafari.red.astronomy.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.SatelliteAlt
+import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
-import com.alijafari.red.astronomy.ui.theme.*
-import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedElevation
+import com.alijafari.red.astronomy.ui.theme.RedIconSize
+import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSurface
-import com.alijafari.red.astronomy.ui.theme.squircleShape
+import com.alijafari.red.astronomy.ui.theme.RedTheme
 
 /**
  * The dock and the circular settings button form one cluster, close together and centred at the
- * bottom of the screen on every skin. The dock is a tall capsule that stops short of full width so
- * the pair breathes on both sides; the settings circle tucks right beside it.
+ * bottom of the screen on every skin. The dock is the fluid pill: a capsule whose dye lens flows
+ * between tabs (see [FluidNavLensHost]); the settings circle tucks right beside it.
  */
 const val BOTTOM_NAV_WIDTH_FRACTION = 0.72f
-val BOTTOM_NAV_HEIGHT: Dp = 56.dp
 
-/** The tight air between the dock and the settings circle in the centred cluster. */
-val BOTTOM_NAV_GAP: Dp = 8.dp
+/** The fluid capsule, per the design. */
+val BOTTOM_NAV_HEIGHT: Dp = 64.dp
 
-/** The one silhouette every skin's dock wears: a squircle pill, ends fully rounded. */
-internal fun bottomNavShape() = squircleShape(RedCornerRadius.pill)
+/** The air between the capsule and the settings circle in the centred cluster. */
+val BOTTOM_NAV_GAP: Dp = 10.dp
 
-data class NavItem(
-    val titleRes: Int,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector,
-    val targetTabIndex: Int,
-    val testTag: String
+/** The settings circle sits a touch smaller than the capsule, as in the design. */
+val BOTTOM_SETTINGS_SIZE: Dp = 56.dp
+
+/** The one silhouette every skin's dock wears: a true capsule, ends fully rounded. */
+internal fun bottomNavShape() = RedShapes.capsule
+
+/**
+ * The Wine dye: the design's own burgundy fluid — deep #2E0019 settling into #660033 over a white
+ * ground. This is what makes the Default UI's bar unique.
+ */
+private val WineFluidDye = FluidDyeStyle(
+    deep = Color(0xFF2E0019),
+    bright = Color(0xFF660033),
+    stroke = Color(0xFF660033).copy(alpha = 0.14f),
 )
 
 @Composable
@@ -63,15 +64,7 @@ fun FloatingBottomBar(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val navItems = listOf(
-        NavItem(R.string.nav_home, Icons.Outlined.Home, Icons.Outlined.Home, 4, "nav_item_home"),
-        NavItem(R.string.nav_arsky, Icons.Outlined.Explore, Icons.Outlined.Explore, 3, "nav_item_arsky"),
-        NavItem(R.string.nav_satellites, Icons.Outlined.SatelliteAlt, Icons.Outlined.SatelliteAlt, 1, "nav_item_satellites"),
-        NavItem(R.string.nav_lab, Icons.Outlined.Science, Icons.Outlined.Science, 0, "nav_item_lab")
-    )
-
-    // A pill: the ends are the full half-height of the bar, drawn with the app's squircle rules.
-    val navShape = bottomNavShape()
+    val host = rememberFluidNavLensHost(WineFluidDye, selectedTab)
 
     Box(modifier.testTag("main_bottom_navigation")) {
         RedSurface(
@@ -79,83 +72,33 @@ fun FloatingBottomBar(
                 .fillMaxWidth()
                 .height(BOTTOM_NAV_HEIGHT)
                 .testTag("main_bottom_navigation_surface"),
-            shape = navShape,
+            shape = bottomNavShape(),
             color = RedTheme.colors.surfaceElevated,
             border = BorderStroke(1.dp, RedTheme.colors.border),
             elevation = RedElevation.floating,
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 10.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                navItems.forEach { item ->
-                    val isSelected = selectedTab == item.targetTabIndex
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-
-                    val itemScale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.93f else 1.0f,
-                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
-                        label = "NavItemPressScale"
-                    )
-
-                    val activeColor by animateColorAsState(
-                        targetValue = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
-                        animationSpec = tween(durationMillis = 200),
-                        label = "NavColor"
-                    )
-
-                    val pillShape = squircleShape(20.dp)
-
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .scale(itemScale)
-                            .clip(pillShape)
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null
-                            ) { onTabSelected(item.targetTabIndex) }
-                            .padding(vertical = 2.dp)
-                            .testTag(item.testTag)
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                                contentDescription = stringResource(item.titleRes),
-                                tint = activeColor,
-                                modifier = Modifier.size(RedIconSize.md)
-                            )
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                text = stringResource(item.titleRes),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = activeColor,
-                                fontSize = 11.sp,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
+            FluidNavLensLayer(modifier = Modifier.fillMaxSize()) {
+                FluidNavItemsRow(
+                    host = host,
+                    selectedIndex = selectedTab,
+                    specs = listOf(
+                        FluidNavSpec(4, stringResource(R.string.nav_home), Icons.Outlined.Home, Icons.Outlined.Home, "nav_item_home"),
+                        FluidNavSpec(3, stringResource(R.string.nav_arsky), Icons.Outlined.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
+                        FluidNavSpec(1, stringResource(R.string.nav_satellites), Icons.Outlined.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
+                        FluidNavSpec(0, stringResource(R.string.nav_lab), Icons.Outlined.Science, Icons.Outlined.Science, "nav_item_lab"),
+                    ),
+                    selectedContentColor = Color.White,
+                    unselectedContentColor = RedTheme.colors.textSecondary,
+                    onSelected = onTabSelected,
+                )
             }
         }
     }
 }
 
 /**
- * Settings, as a true circle tucked close beside the centred dock. It wears the dock's own material
- * so the pair reads as one piece of chrome, and it appears wherever the dock appears.
+ * Settings, as a true circle tucked close beside the centred fluid capsule. It wears the dock's own
+ * material so the pair reads as one piece of chrome, and it appears wherever the dock appears.
  */
 @Composable
 fun FloatingSettingsBubble(
@@ -164,7 +107,7 @@ fun FloatingSettingsBubble(
 ) {
     RedSurface(
         modifier = modifier
-            .size(BOTTOM_NAV_HEIGHT)
+            .size(BOTTOM_SETTINGS_SIZE)
             .testTag("bottom_settings_button"),
         shape = CircleShape,
         color = RedTheme.colors.surfaceElevated,
