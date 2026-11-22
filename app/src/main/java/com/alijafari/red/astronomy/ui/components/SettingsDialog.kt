@@ -277,7 +277,7 @@ fun SettingsDialog(
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = stringResource(R.string.app_name),
-                            style = RedTypographyTokens.title,
+                            style = RedTypographyTokens.screenTitle,
                             color = RedTheme.colors.textPrimary
                         )
                         Text(
