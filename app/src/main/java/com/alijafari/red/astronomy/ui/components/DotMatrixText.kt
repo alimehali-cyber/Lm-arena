@@ -64,28 +64,31 @@ fun DotMatrixText(
     height: Dp = 44.dp,
     contentDescription: String? = null,
 ) {
-    val cell = height / GLYPH_ROWS
-    val gap = cell * GLYPH_GAP_CELLS
+    val cellDp = height / GLYPH_ROWS
+    val gapDp = cellDp * GLYPH_GAP_CELLS
     val glyphs = remember(text) { text.mapNotNull { DotMatrixGlyphs[it] } }
-    val width = remember(text, cell, gap) {
-        cell * (GLYPH_COLS * glyphs.size + GLYPH_GAP_CELLS * (glyphs.size - 1).coerceAtLeast(0))
-    }
-    val litRadius = cell * 0.40f
-    val ghostRadius = cell * 0.34f
+    val gaps = (glyphs.size - 1).coerceAtLeast(0)
+    val widthDp = cellDp * (GLYPH_COLS * glyphs.size).toFloat() + gapDp * gaps.toFloat()
+    val litRadiusDp = cellDp * 0.40f
+    val ghostRadiusDp = cellDp * 0.34f
 
     Canvas(
         modifier = modifier
             .height(height)
-            .width(width)
-            .semantics { if (contentDescription != null) contentDescription = contentDescription },
+            .width(widthDp)
+            .semantics { if (contentDescription != null) this.contentDescription = contentDescription },
     ) {
+        val cellPx = size.height / GLYPH_ROWS
+        val gapPx = cellPx * GLYPH_GAP_CELLS
+        val litRadius = litRadiusDp.toPx()
+        val ghostRadius = ghostRadiusDp.toPx()
         var originX = 0f
         glyphs.forEach { glyph ->
             for (row in 0 until GLYPH_ROWS) {
                 val bits = glyph[row]
                 for (col in 0 until GLYPH_COLS) {
-                    val cx = originX + cell * (col + 0.5f)
-                    val cy = cell * (row + 0.5f)
+                    val cx = originX + cellPx * (col + 0.5f)
+                    val cy = cellPx * (row + 0.5f)
                     val lit = (bits shr (GLYPH_COLS - 1 - col) and 1) == 1
                     if (lit) {
                         drawCircle(color = color.copy(alpha = 0.16f), radius = litRadius * 1.75f, center = Offset(cx, cy))
@@ -96,7 +99,7 @@ fun DotMatrixText(
                     }
                 }
             }
-            originX += cell * GLYPH_COLS + gap
+            originX += cellPx * GLYPH_COLS + gapPx
         }
     }
 }
