@@ -31,12 +31,13 @@ import com.alijafari.red.astronomy.ui.theme.RedTheme
 
 /**
  * The dock and the circular settings button form one cluster, close together and centred at the
- * bottom of the screen on every skin. The dock is the fluid pill: a capsule whose dye lens flows
- * between tabs (see [FluidNavLensHost]); the settings circle tucks right beside it.
+ * bottom of the screen on every skin. The dock wears the design's true capsule, with the selected
+ * tab shown as a luxurious burgundy #660033 gradient capsule with a woven-silk grain
+ * (see [LuxuryNavTabItemsRow]); the settings circle tucks right beside it.
  */
 const val BOTTOM_NAV_WIDTH_FRACTION = 0.72f
 
-/** The fluid capsule, per the design. */
+/** The capsule, per the design. */
 val BOTTOM_NAV_HEIGHT: Dp = 64.dp
 
 /** The air between the capsule and the settings circle in the centred cluster. */
@@ -56,8 +57,6 @@ fun FloatingBottomBar(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val host = rememberFluidNavLensHost(BurgundyFluidDye, selectedTab)
-
     Box(modifier.testTag("main_bottom_navigation")) {
         RedSurface(
             modifier = Modifier
@@ -69,27 +68,25 @@ fun FloatingBottomBar(
             border = BorderStroke(1.dp, RedTheme.colors.border),
             elevation = RedElevation.floating,
         ) {
-            FluidNavLensLayer(host = host, modifier = Modifier.fillMaxSize()) {
-                FluidNavItemsRow(
-                    host = host,
-                    selectedIndex = selectedTab,
-                    specs = listOf(
-                        FluidNavSpec(4, stringResource(R.string.nav_home), Icons.Outlined.Home, Icons.Outlined.Home, "nav_item_home"),
-                        FluidNavSpec(3, stringResource(R.string.nav_arsky), Icons.Outlined.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
-                        FluidNavSpec(1, stringResource(R.string.nav_satellites), Icons.Outlined.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
-                        FluidNavSpec(0, stringResource(R.string.nav_lab), Icons.Outlined.Science, Icons.Outlined.Science, "nav_item_lab"),
-                    ),
-                    selectedContentColor = Color.White,
-                    unselectedContentColor = RedTheme.colors.textSecondary,
-                    onSelected = onTabSelected,
-                )
-            }
+            LuxuryNavTabItemsRow(
+                modifier = Modifier.fillMaxSize(),
+                selectedIndex = selectedTab,
+                specs = listOf(
+                    NavTabSpec(4, stringResource(R.string.nav_home), Icons.Outlined.Home, Icons.Outlined.Home, "nav_item_home"),
+                    NavTabSpec(3, stringResource(R.string.nav_arsky), Icons.Outlined.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
+                    NavTabSpec(1, stringResource(R.string.nav_satellites), Icons.Outlined.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
+                    NavTabSpec(0, stringResource(R.string.nav_lab), Icons.Outlined.Science, Icons.Outlined.Science, "nav_item_lab"),
+                ),
+                selectedContentColor = Color.White,
+                unselectedContentColor = RedTheme.colors.textSecondary,
+                onSelected = onTabSelected,
+            )
         }
     }
 }
 
 /**
- * Settings, as a true circle tucked close beside the centred fluid capsule. It wears the dock's own
+ * Settings, as a true circle tucked close beside the centred capsule. It wears the dock's own
  * material so the pair reads as one piece of chrome, and it appears wherever the dock appears.
  */
 @Composable

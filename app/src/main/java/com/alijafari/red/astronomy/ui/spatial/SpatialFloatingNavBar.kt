@@ -38,21 +38,18 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_HEIGHT
 import com.alijafari.red.astronomy.ui.components.BOTTOM_SETTINGS_SIZE
-import com.alijafari.red.astronomy.ui.components.BurgundyFluidDye
-import com.alijafari.red.astronomy.ui.components.FluidNavItemsRow
-import com.alijafari.red.astronomy.ui.components.FluidNavLensLayer
-import com.alijafari.red.astronomy.ui.components.FluidNavSpec
-import com.alijafari.red.astronomy.ui.components.rememberFluidNavLensHost
+import com.alijafari.red.astronomy.ui.components.LuxuryNavTabItemsRow
+import com.alijafari.red.astronomy.ui.components.NavTabSpec
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 
 
 
 /**
- * VisionOS Floating Spatial Glass Fluid Navigation Capsule.
+ * VisionOS Floating Spatial Glass Burgundy Navigation Capsule.
  *
- * The fluid pill design in Spatial chrome: a frosted G2 capsule with top-edge specular rim
- * lighting and the burgundy dye lens (#660033) that flows between tabs like liquid light,
- * travelling with the circular settings button as one centred cluster.
+ * The design in Spatial chrome: a frosted G2 capsule with top-edge specular rim lighting, and
+ * the selected tab shown as a luxurious burgundy (#660033) silk-gradient capsule with a
+ * woven-grain texture, travelling with the circular settings button as one centred cluster.
  */
 @Composable
 fun SpatialFloatingNavBar(
@@ -61,7 +58,6 @@ fun SpatialFloatingNavBar(
     modifier: Modifier = Modifier
 ) {
     val palette = SpatialTheme.palette
-    val host = rememberFluidNavLensHost(BurgundyFluidDye, selectedTab)
     val dockShape = RedShapes.capsule
     val rimBrush = remember(palette) {
         Brush.verticalGradient(
@@ -104,27 +100,25 @@ fun SpatialFloatingNavBar(
                 }
                 .border(BorderStroke(1.dp, rimBrush), dockShape)
         ) {
-            FluidNavLensLayer(host = host, modifier = Modifier.fillMaxSize()) {
-                FluidNavItemsRow(
-                    host = host,
-                    selectedIndex = selectedTab,
-                    specs = listOf(
-                        FluidNavSpec(4, stringResource(R.string.nav_home), Icons.Filled.Home, Icons.Outlined.Home, "nav_item_home"),
-                        FluidNavSpec(3, stringResource(R.string.nav_arsky), Icons.Filled.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
-                        FluidNavSpec(1, stringResource(R.string.nav_satellites), Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
-                        FluidNavSpec(0, stringResource(R.string.nav_lab), Icons.Filled.Science, Icons.Outlined.Science, "nav_item_lab"),
-                    ),
-                    selectedContentColor = Color.White,
-                    unselectedContentColor = palette.textSecondary,
-                    onSelected = onTabSelected,
-                )
-            }
+            LuxuryNavTabItemsRow(
+                modifier = Modifier.fillMaxSize(),
+                selectedIndex = selectedTab,
+                specs = listOf(
+                    NavTabSpec(4, stringResource(R.string.nav_home), Icons.Filled.Home, Icons.Outlined.Home, "nav_item_home"),
+                    NavTabSpec(3, stringResource(R.string.nav_arsky), Icons.Filled.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
+                    NavTabSpec(1, stringResource(R.string.nav_satellites), Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
+                    NavTabSpec(0, stringResource(R.string.nav_lab), Icons.Filled.Science, Icons.Outlined.Science, "nav_item_lab"),
+                ),
+                selectedContentColor = Color.White,
+                unselectedContentColor = palette.textSecondary,
+                onSelected = onTabSelected,
+            )
         }
     }
 }
 
 /**
- * Settings, as a true circle tucked close beside the centred fluid capsule: same frosted glass
+ * Settings, as a true circle tucked close beside the centred capsule: same frosted glass
  * material and rim, so the dock and it read as one piece of chrome.
  */
 @Composable

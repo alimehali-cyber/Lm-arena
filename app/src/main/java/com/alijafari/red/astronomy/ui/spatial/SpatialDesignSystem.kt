@@ -341,7 +341,7 @@ fun SpatialThemeProvider(
  * 3. Translucent frosted surface (`rgba(255,255,255,0.12)` + warm ambient diffusion sheen).
  * 4. Inset top specular highlight (`inset 0 1px 2px rgba(255,255,255,0.5)`) simulating glass thickness.
  * 5. Directional specular rim border (`border-white/20` with bright top catchlight).
- * 6. Tactile fluid spring press feedback.
+ * 6. Tactile spring press feedback.
  */
 @Composable
 fun SpatialGlassCard(

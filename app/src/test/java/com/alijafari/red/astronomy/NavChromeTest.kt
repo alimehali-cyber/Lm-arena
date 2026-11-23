@@ -6,10 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The bottom chrome is the fluid pill design on every skin: a capsule whose CPU stable-fluid dye
- * lens flows between tabs, plus one circular settings button, close together in one centred
- * cluster at the bottom of the screen. The fluid is primarily #660033 on every UI and lives
- * continuously; each skin stays unique through its chrome.
+ * The bottom chrome is one design on every skin: a capsule whose selected button is a luxurious
+ * burgundy (#660033) silk-gradient capsule with a woven-grain texture — no simulation, no fluid —
+ * plus one circular settings button, close together in one centred cluster at the bottom of the
+ * screen. The object information page shows the live observatory score as a dot-matrix readout,
+ * in Persian digits with ٪ in Persian mode.
  */
 class NavChromeTest {
 
@@ -20,59 +21,52 @@ class NavChromeTest {
 
     private fun source(relative: String): String = file("src/main", relative)
 
-    private val engine by lazy { source("com/alijafari/red/astronomy/ui/components/FluidPillNavBar.kt") }
+    private val luxuryPill by lazy { source("com/alijafari/red/astronomy/ui/components/LuxuryNavTabPill.kt") }
+    private val dotMatrix by lazy { source("com/alijafari/red/astronomy/ui/components/DotMatrixText.kt") }
+    private val objectDetailModal by lazy { source("com/alijafari/red/astronomy/ui/components/ObjectDetailModal.kt") }
     private val defaultBar by lazy { source("com/alijafari/red/astronomy/ui/components/FloatingNavBar.kt") }
     private val spatialBar by lazy { source("com/alijafari/red/astronomy/ui/spatial/SpatialFloatingNavBar.kt") }
     private val aetherBar by lazy { source("com/alijafari/red/astronomy/ui/aether/AetherFloatingNavBar.kt") }
     private val activity by lazy { source("com/alijafari/red/astronomy/MainActivity.kt") }
 
     @Test
-    fun theFluidEngineIsSharedAndTheLensFlowsBetweenTabs() {
-        // Jos Stam stable fluids on the CPU, the heart of the design.
-        assertTrue("the solver ships in the shared engine", engine.contains("class StableFluid"))
-        assertTrue("the design is documented as Jos Stam stable fluids", engine.contains("Jos Stam"))
-        // The two-edge spring: stretch toward the new tab, then the trailing edge snaps shut.
-        assertTrue("spring stiffness", engine.contains("K_LENS"))
-        assertTrue("spring damping", engine.contains("ZETA_LENS"))
-        assertTrue("the trailing edge waits before snapping shut", engine.contains("FLOW_DELAY_MS"))
-        // The dye is clipped to a pill and the flow pushes dye along the direction of travel.
-        assertTrue("lens is a pill clip", engine.contains("clipPath(pill)"))
-        assertTrue("flow pushes dye", engine.contains("val push = if (dirRight) 8f else -8f"))
-        assertTrue("the capsule is seeded full of dye", engine.contains("fun seed()"))
-        assertTrue("the dye stays alive with ambient splats", engine.contains("fun ambientSplat("))
+    fun theSelectedTabWearsLuxuriousBurgundy() {
+        // The luxurious burgundy: #660033 heart under a silk radial, deep-wine rim.
+        assertTrue("the shared luxurious burgundy ships with the component", luxuryPill.contains("val LuxuryBurgundy = Color(0xFF660033)"))
+        assertTrue("the design's deep companion keeps the rim honest", luxuryPill.contains("0xFF2E0019"))
+        // Five passes: silk radial body, diagonal satin sheen, lacquered top light,
+        // deep inner shadow, and the micro-grain tooth.
+        assertTrue("layered silk radial gradient", luxuryPill.contains("Brush.radialGradient("))
+        assertTrue("diagonal satin sheen", luxuryPill.contains("Brush.linearGradient("))
+        assertTrue("lacquered top light", luxuryPill.contains("Brush.verticalGradient("))
+        assertTrue("woven micro-grain texture", luxuryPill.contains("GrainSpeckles"))
+        assertTrue("silk sparks catch the weave", luxuryPill.contains("SilkSparkles"))
+        assertTrue("champagne hairline rim", luxuryPill.contains("Champagne.copy(alpha = 0.28f)"))
+        // Selection bloom is a spring fade-and-scale — no per-frame simulation exists.
+        assertTrue("selection reveals with a spring", luxuryPill.contains("LuxuryReveal"))
+        assertTrue("the icon keeps its bouncy pop", luxuryPill.contains("spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow)"))
     }
 
     @Test
-    fun theFluidIsPrimarilyBurgundyAndTheSimLives() {
-        // The primary dye — the design's #660033 — lives in the shared engine.
-        assertTrue("the shared burgundy dye ships with the engine", engine.contains("val BurgundyFluidDye"))
-        assertTrue("primary #660033", engine.contains("0xFF660033"))
-        assertTrue("deep companion #2E0019", engine.contains("0xFF2E0019"))
-        // The sim lives continuously on devices with the design's 420 ms fill pulses.
-        assertTrue("the dye keeps alive with ambient splats", engine.contains("fun ambientSplat("))
-        assertTrue("live on devices, settled under the harness", engine.contains("fluidRunsLive"))
-        // The natural flow: the WebGL-Fluid-Simulation recipe — Gaussian splats, curl and
-        // vorticity confinement, a Jacobi pressure solve, and ink over a white ground so the
-        // dye always shows its wisps instead of flattening into a dark slab.
-        assertTrue("gaussian splats", engine.contains("exp(-(dx * dx + dy * dy) * inv)"))
-        assertTrue("curl", engine.contains("computeCurl"))
-        assertTrue("vorticity confinement", engine.contains("vorticityConfinement"))
-        assertTrue("pressure jacobi", engine.contains("PRESSURE_ITERATIONS"))
-        assertTrue("ink over a white ground", engine.contains("1f - exp(-d"))
+    fun noFluidAnimationRemainsAnywhereInTheChrome() {
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
-            assertTrue("$name runs the shared fluid lens", bar.contains("rememberFluidNavLensHost("))
-            assertTrue("$name draws the fluid layer", bar.contains("FluidNavLensLayer("))
-            assertTrue("$name lays its cells on the fluid", bar.contains("FluidNavItemsRow("))
-            assertTrue("$name wears the primarily-#660033 dye", bar.contains("BurgundyFluidDye"))
+            assertTrue("$name runs the shared burgundy tab row", bar.contains("LuxuryNavTabItemsRow("))
+            assertTrue("$name addresses cells through NavTabSpec", bar.contains("NavTabSpec("))
+            assertFalse("$name has no simulation host", bar.contains("rememberFluidNavLensHost"))
+            assertFalse("$name has no fluid canvas layer", bar.contains("FluidNavLensLayer("))
         }
-        // Each UI stays unique through its chrome, not its dye.
+        // The fluid engine itself is gone — the capsule is pure composition now.
+        assertFalse("no solver ships in the shared component", luxuryPill.contains("StableFluid"))
+        assertFalse("no simulation loop remains", luxuryPill.contains("fluidRunsLive"))
+        assertFalse("no per-frame frame loop remains", luxuryPill.contains("withFrameNanos"))
+        // Every skin keeps its own chrome; the selected tab is the shared burgundy on all of them.
         assertTrue("default keeps the wine surface capsule", defaultBar.contains("RedSurface("))
         assertTrue("aether keeps the specular rim glass", aetherBar.contains("specularRimBorder("))
         assertTrue("spatial keeps the rim-lit spatial glass", spatialBar.contains("glassElevatedFill"))
     }
 
     @Test
-    fun everyDockIsTheFluidCapsuleAndEverySettingsButtonIsACircle() {
+    fun everyDockIsTheCapsuleAndEverySettingsButtonIsACircle() {
         assertTrue("one shared width for all three skins", defaultBar.contains("const val BOTTOM_NAV_WIDTH_FRACTION = 0.72f"))
         assertTrue("the capsule is the design's 64 dp", defaultBar.contains("val BOTTOM_NAV_HEIGHT: Dp = 64.dp"))
         assertTrue("the cluster gap is the design's 10 dp", defaultBar.contains("val BOTTOM_NAV_GAP: Dp = 10.dp"))
@@ -127,6 +121,23 @@ class NavChromeTest {
     }
 
     @Test
+    fun theLiveScoreIsAPersianDotMatrixReadout() {
+        // The score renders as a dot-matrix readout, not a raw English percentage.
+        assertTrue("the modal renders the score through the dot-matrix readout", objectDetailModal.contains("DotMatrixScore("))
+        assertFalse("the raw English percentage is gone", objectDetailModal.contains("\${obs.scorePercent}%"))
+        // The glyphs ship as a 5x7 matrix — Persian digits with ٪, Latin digits with %.
+        assertTrue("the dot-matrix glyph table ships with the component", dotMatrix.contains("DotMatrixGlyphs"))
+        assertTrue("Persian digits are set in the matrix", dotMatrix.contains("'۰' to intArrayOf("))
+        assertTrue("the Persian percent glyph is set in the matrix", dotMatrix.contains("'٪' to intArrayOf("))
+        assertTrue("Latin digits are set in the matrix", dotMatrix.contains("'0' to intArrayOf("))
+        assertTrue("Latin percent glyph is set in the matrix", dotMatrix.contains("'%' to intArrayOf("))
+        assertTrue("Persian mode renders Persian digits", dotMatrix.contains("formatPersianNumbers(scorePercent.toString())"))
+        assertTrue("Persian mode appends the Persian percent sign", dotMatrix.contains("+ \"٪\""))
+        assertTrue("English mode renders Latin digits with %", dotMatrix.contains("\"\$scorePercent%\""))
+        assertTrue("the Persian score reads itself aloud in Persian", dotMatrix.contains("امتیاز رصدپذیری"))
+    }
+
+    @Test
     fun theHomeSkyExpandButtonIsACircleLikeTheSearchButton() {
         for ((name, home) in listOf(
             "default" to source("com/alijafari/red/astronomy/ui/screens/HomeScreen.kt"),
@@ -148,7 +159,7 @@ class NavChromeTest {
     @Test
     fun theHudClearsTheDockAndThePreviewsShowTheSameChrome() {
         val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
-        assertTrue("the cards clear the 64 dp fluid capsule", stage.contains("bottomInset + 76.dp"))
+        assertTrue("the cards clear the 64 dp capsule", stage.contains("bottomInset + 76.dp"))
         val previews = file("src/debug", "com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt")
         assertTrue(previews.contains("BOTTOM_NAV_WIDTH_FRACTION"))
         assertTrue(previews.contains("BOTTOM_NAV_GAP"))

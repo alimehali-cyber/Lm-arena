@@ -33,20 +33,17 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_HEIGHT
 import com.alijafari.red.astronomy.ui.components.BOTTOM_SETTINGS_SIZE
-import com.alijafari.red.astronomy.ui.components.BurgundyFluidDye
-import com.alijafari.red.astronomy.ui.components.FluidNavItemsRow
-import com.alijafari.red.astronomy.ui.components.FluidNavLensLayer
-import com.alijafari.red.astronomy.ui.components.FluidNavSpec
-import com.alijafari.red.astronomy.ui.components.rememberFluidNavLensHost
+import com.alijafari.red.astronomy.ui.components.LuxuryNavTabItemsRow
+import com.alijafari.red.astronomy.ui.components.NavTabSpec
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 
 
 
 /**
- * Floating Aether Telemetry Fluid Capsule Dock: the fluid pill design in Aether chrome — a
- * frameless optical capsule (`FrostedGlassFill` `#14FFFFFF`) with razor-thin `1.dp` directional
- * specular rim border, a crimson glow shadow, and the burgundy dye lens (#660033) that flows
- * between tabs, pushing fluid along the direction of travel. Haptic feedback on every tap.
+ * Floating Aether Telemetry Burgundy Capsule Dock: the selected tab wears a luxurious burgundy
+ * (#660033) silk-gradient capsule with a woven-grain texture; the frameless optical dock
+ * (`FrostedGlassFill` `#14FFFFFF`) carries a razor-thin `1.dp` directional specular rim border and
+ * a crimson glow shadow. Haptic feedback on every tap.
  */
 @Composable
 fun AetherFloatingNavBar(
@@ -56,7 +53,6 @@ fun AetherFloatingNavBar(
 ) {
     val palette = AetherTheme.palette
     val haptics = LocalHapticFeedback.current
-    val host = rememberFluidNavLensHost(BurgundyFluidDye, selectedTab)
     val shape = RedShapes.capsule
 
     Box(modifier.testTag("floating_bottom_bar")) {
@@ -75,30 +71,28 @@ fun AetherFloatingNavBar(
                 .background(palette.frostedGlassFill)
                 .specularRimBorder(shape = shape)
         ) {
-            FluidNavLensLayer(host = host, modifier = Modifier.fillMaxSize()) {
-                FluidNavItemsRow(
-                    host = host,
-                    selectedIndex = selectedTab,
-                    specs = listOf(
-                        FluidNavSpec(4, stringResource(R.string.nav_home), Icons.Filled.Home, Icons.Outlined.Home, "nav_item_home"),
-                        FluidNavSpec(3, stringResource(R.string.nav_arsky), Icons.Filled.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
-                        FluidNavSpec(1, stringResource(R.string.nav_satellites), Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
-                        FluidNavSpec(0, stringResource(R.string.nav_lab), Icons.Filled.Science, Icons.Outlined.Science, "nav_item_lab"),
-                    ),
-                    selectedContentColor = Color.White,
-                    unselectedContentColor = palette.mutedTelemetry,
-                    onSelected = {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onTabSelected(it)
-                    },
-                )
-            }
+            LuxuryNavTabItemsRow(
+                modifier = Modifier.fillMaxSize(),
+                selectedIndex = selectedTab,
+                specs = listOf(
+                    NavTabSpec(4, stringResource(R.string.nav_home), Icons.Filled.Home, Icons.Outlined.Home, "nav_item_home"),
+                    NavTabSpec(3, stringResource(R.string.nav_arsky), Icons.Filled.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
+                    NavTabSpec(1, stringResource(R.string.nav_satellites), Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
+                    NavTabSpec(0, stringResource(R.string.nav_lab), Icons.Filled.Science, Icons.Outlined.Science, "nav_item_lab"),
+                ),
+                selectedContentColor = Color.White,
+                unselectedContentColor = palette.mutedTelemetry,
+                onSelected = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onTabSelected(it)
+                },
+            )
         }
     }
 }
 
 /**
- * Settings, as a true circle tucked close beside the centred fluid capsule: same frosted capsule
+ * Settings, as a true circle tucked close beside the centred capsule: same frosted capsule
  * material and crimson rim, so the dock and it read as one piece of chrome.
  */
 @Composable

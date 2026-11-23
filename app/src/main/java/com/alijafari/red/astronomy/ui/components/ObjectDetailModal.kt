@@ -416,10 +416,10 @@ fun ObjectDetailModal(
                             )
                         }
 
-                        Text(
-                            text = "${obs.scorePercent}%",
-                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                            color = obs.level.color
+                        DotMatrixScore(
+                            scorePercent = obs.scorePercent,
+                            isFa = isFa,
+                            color = obs.level.color,
                         )
                     }
                 }
