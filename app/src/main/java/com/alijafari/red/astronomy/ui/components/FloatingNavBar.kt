@@ -32,8 +32,9 @@ import com.alijafari.red.astronomy.ui.theme.RedTheme
 /**
  * The dock and the circular settings button form one cluster, close together and centred at the
  * bottom of the screen on every skin. The dock wears the design's true capsule, with the selected
- * tab shown as a luxurious burgundy #660033 gradient capsule with a woven-silk grain
- * (see [LuxuryNavTabItemsRow]); the settings circle tucks right beside it.
+ * tab shown as a jet-black deep-space capsule — a real nebula photograph with blue ribbons,
+ * violet clouds, star sprinkles and a live twinkle (see [SpaceSkyNavTabItemsRow]);
+ * the settings circle tucks right beside it.
  */
 const val BOTTOM_NAV_WIDTH_FRACTION = 0.72f
 
@@ -68,7 +69,7 @@ fun FloatingBottomBar(
             border = BorderStroke(1.dp, RedTheme.colors.border),
             elevation = RedElevation.floating,
         ) {
-            LuxuryNavTabItemsRow(
+            SpaceSkyNavTabItemsRow(
                 modifier = Modifier.fillMaxSize(),
                 selectedIndex = selectedTab,
                 specs = listOf(

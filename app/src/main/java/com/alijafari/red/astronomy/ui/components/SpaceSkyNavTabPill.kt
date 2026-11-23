@@ -3,8 +3,12 @@ package com.alijafari.red.astronomy.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,41 +37,38 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.R
 
 /* ------------------------------------------------------------------ */
-/*  The bottom navigation — the selected tab is a luxurious burgundy    */
-/*  capsule (#660033): layered silk-radial gradient, a diagonal satin   */
-/*  sheen, lacquered top light, deep inner shadow, champagne hairline   */
-/*  rim and a deterministic micro-grain texture. Pure composition over   */
-/*  static brushes — no simulation, no per-frame work.                  */
+/*  The bottom navigation — the selected tab is a jet-black deep space  */
+/*  sky: a real nebula photograph composited under the capsule, blue    */
+/*  light ribbons, violet nebulous clouds and thousands of star         */
+/*  sprinkles, twinkling live. Pure composition over static art plus    */
+/*  a soft loop — no simulation, no per-frame physics.                  */
 /* ------------------------------------------------------------------ */
 
-/** The one and only burgundy — the design's #660033. */
-val LuxuryBurgundy = Color(0xFF660033)
+/** The starlight hairline that rims the capsule — cool, thin, lit from above. */
+private val Starlight = Color(0xFFCFE0FF)
 
-/** Silk-lit burgundy ramp, darkest at the rim, #660033 at the heart, dusty-rose light at the top. */
-private val BurgundySparkLo = Color(0xFF1F000F)   // lacquer edge, near-black wine
-private val BurgundyDeep    = Color(0xFF2E0019)   // the deep companion
-private val BurgundyDark    = Color(0xFF47001F)   // shadowed wine
-private val BurgundyBody    = Color(0xFF660033)   // the design's burgundy
-private val BurgundySilk    = Color(0xFF7E1243)   // silk over the body
-private val BurgundyShine   = Color(0xFFA63E67)   // dusty-rose silk light
-
-/** Champagne — the whisper of gold in the hairline rim. */
-private val Champagne = Color(0xFFF2C9D4)
+/** A few spectral tints for the sprinkle field. */
+private val StarWhite = Color(0xFFF2F6FF)
+private val StarBlue = Color(0xFF9CC3FF)
+private val StarWarm = Color(0xFFFFD9A8)
 
 /** One destination shown inside the navigation bar. */
 data class NavTabSpec(
@@ -80,52 +81,63 @@ data class NavTabSpec(
 )
 
 /* ------------------------------------------------------------------ */
-/*  Deterministic micro-grain: spun-silk tooth under the lacquer.       */
-/*  Generated once; the same bite of texture in every capsule.          */
+/*  Deterministic sprinkle fields — generated once, same sky forever.   */
 /* ------------------------------------------------------------------ */
 
-private data class Speckle(
+private data class Sprinkle(
     /** Position in unit capsule space (0..1). */
     val x: Float,
     val y: Float,
     val radius: Float,
-    val light: Boolean,
     val alpha: Float,
+    val color: Color,
 )
 
-private val GrainSpeckles: List<Speckle> = run {
-    val rnd = java.util.Random(0x660033.toLong())
-    List(260) {
-        Speckle(
+private val StarSprinkles: List<Sprinkle> = run {
+    val rnd = java.util.Random(0x57A4A5)
+    List(170) {
+        val pick = rnd.nextFloat()
+        Sprinkle(
             x = rnd.nextFloat(),
             y = rnd.nextFloat(),
-            radius = 0.004f + rnd.nextFloat() * 0.012f,
-            light = rnd.nextBoolean(),
-            alpha = 0.05f + rnd.nextFloat() * 0.11f,
+            radius = 0.006f + rnd.nextFloat() * 0.013f,
+            alpha = 0.22f + rnd.nextFloat() * 0.60f,
+            color = when {
+                pick < 0.62f -> StarWhite
+                pick < 0.90f -> StarBlue
+                else -> StarWarm
+            },
         )
     }
 }
 
-/** A handful of silk sparks — tiny glints where the weave catches the light. */
-private data class Sparkle(val x: Float, val y: Float, val radius: Float, val alpha: Float)
+/** The bright sprinkles that twinkle — six out-of-phase stars breathing in 0..1. */
+private data class TwinklingStar(
+    val x: Float,
+    val y: Float,
+    val radius: Float,
+    val alpha: Float,
+    val phase: Float,
+)
 
-private val SilkSparkles: List<Sparkle> = run {
-    val rnd = java.util.Random(0x5EED)
-    List(7) {
-        Sparkle(
-            x = 0.12f + rnd.nextFloat() * 0.76f,
-            y = 0.18f + rnd.nextFloat() * 0.40f,
-            radius = 0.010f + rnd.nextFloat() * 0.014f,
-            alpha = 0.22f + rnd.nextFloat() * 0.30f,
+private val TwinklingStars: List<TwinklingStar> = run {
+    val rnd = java.util.Random(0xBADC0DE)
+    List(6) { index ->
+        TwinklingStar(
+            x = 0.08f + rnd.nextFloat() * 0.84f,
+            y = 0.16f + rnd.nextFloat() * 0.56f,
+            radius = 0.013f + rnd.nextFloat() * 0.009f,
+            alpha = 0.55f + rnd.nextFloat() * 0.35f,
+            phase = index * 0.37f,
         )
     }
 }
 
 /* ------------------------------------------------------------------ */
-/*  The luxurious burgundy capsule, painted in five passes              */
+/*  The jet-black space-sky capsule, painted in passes                  */
 /* ------------------------------------------------------------------ */
 
-private fun DrawScope.drawLuxuryBurgundyCapsule() {
+private fun DrawScope.drawSpaceSkyCapsule(nebula: ImageBitmap, twinkle: Float) {
     val w = size.width
     val h = size.height
     val pill = Path().apply {
@@ -137,67 +149,103 @@ private fun DrawScope.drawLuxuryBurgundyCapsule() {
         )
     }
     clipPath(pill) {
-        // 1. Spun-silk radial body: #660033 heart under a dusty-rose glow, deep wine at the rim.
+        // The nebula itself — cover-cropped to the capsule so the sky never letterboxes.
+        val canvasAspect = w / h
+        val bitmapAspect = nebula.width.toFloat() / nebula.height.toFloat()
+        if (bitmapAspect >= canvasAspect) {
+            val srcWidth = (nebula.height * canvasAspect).toInt()
+            val srcX = ((nebula.width - srcWidth) / 2f).toInt()
+            drawImage(
+                image = nebula,
+                srcOffset = IntOffset(srcX, 0),
+                srcSize = IntSize(srcWidth, nebula.height),
+                dstOffset = IntOffset.Zero,
+                dstSize = IntSize(w.toInt(), h.toInt()),
+            )
+        } else {
+            val srcHeight = (nebula.width / canvasAspect).toInt()
+            val srcY = ((nebula.height - srcHeight) / 2f).toInt()
+            drawImage(
+                image = nebula,
+                srcOffset = IntOffset(0, srcY),
+                srcSize = IntSize(nebula.width, srcHeight),
+                dstOffset = IntOffset.Zero,
+                dstSize = IntSize(w.toInt(), h.toInt()),
+            )
+        }
+        // The black at the edges — the sky must read as jet black, not lifted gray.
         drawRect(
             brush = Brush.radialGradient(
-                colors = listOf(BurgundyShine, BurgundySilk, BurgundyBody, BurgundyDark, BurgundyDeep),
-                center = Offset(w * 0.5f, h * 0.16f),
-                radius = h * 2.1f,
+                colors = listOf(Color.Transparent, Color(0x40000000), Color(0x80000000)),
+                center = Offset(w * 0.5f, h * 0.5f),
+                radius = h * 1.35f,
             )
         )
-        // 2. Diagonal satin sheen — one soft blade of reflected light, never a stripe.
+        // One ultra-thin blade of incident light — glass, not paint.
         drawRect(
             brush = Brush.linearGradient(
-                colors = listOf(Color.Transparent, Color(0x38FFD9E6), Color.Transparent),
-                start = Offset(w * 0.08f, 0f),
-                end = Offset(w * 0.62f, h),
+                colors = listOf(Color.Transparent, Color(0x14FFFFFF), Color.Transparent),
+                start = Offset(w * 0.10f, 0f),
+                end = Offset(w * 0.60f, h),
             )
         )
-        // 3. Lacquered top light — the gloss a well-kept burgundy leather folio carries.
+        // The faintest lacquer along the very top edge.
         drawRect(
             brush = Brush.verticalGradient(
-                colors = listOf(Color(0x57FFD9E4), Color(0x0FFFD9E4), Color.Transparent),
+                colors = listOf(Color(0x2EFFFFFF), Color(0x0AFFFFFF), Color.Transparent),
                 startY = 0f,
-                endY = h * 0.38f,
+                endY = h * 0.32f,
             )
         )
-        // 4. Deep inner shadow along the bottom — the capsule sits IN the bar, not on it.
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(Color.Transparent, Color(0x0F1F000F), Color(0x66000000)),
-                startY = h * 0.52f,
-                endY = h,
-            )
-        )
-        // 5. Micro-grain tooth + silk sparks — the texture of woven burgundy.
-        GrainSpeckles.forEach { s ->
+        // Star sprinkles — the static field.
+        StarSprinkles.forEach { s ->
             drawCircle(
-                color = (if (s.light) Color.White else Color.Black).copy(alpha = s.alpha),
+                color = s.color.copy(alpha = s.alpha),
                 radius = s.radius * h,
                 center = Offset(s.x * w, s.y * h),
             )
         }
-        SilkSparkles.forEach { s ->
+        // The twinkle field — six bright stars breathing out of phase.
+        TwinklingStars.forEach { s ->
+            val wave = 0.5f + 0.5f * kotlin.math.sin((twinkle + s.phase) * 2f * Math.PI.toFloat())
+            val breathe = 0.22f + 0.78f * wave
+            val radius = s.radius * h
             drawCircle(
-                color = Color(0xFFFFE9EF).copy(alpha = s.alpha),
-                radius = s.radius * h,
+                color = StarWhite.copy(alpha = s.alpha * breathe),
+                radius = radius,
                 center = Offset(s.x * w, s.y * h),
             )
+            if (wave > 0.62f) {
+                val cross = radius * 3.1f
+                val lineAlpha = (wave - 0.62f) / 0.38f * s.alpha
+                drawLine(
+                    color = StarWhite.copy(alpha = lineAlpha),
+                    start = Offset(s.x * w - cross, s.y * h),
+                    end = Offset(s.x * w + cross, s.y * h),
+                    strokeWidth = 1.15f,
+                )
+                drawLine(
+                    color = StarWhite.copy(alpha = lineAlpha),
+                    start = Offset(s.x * w, s.y * h - cross),
+                    end = Offset(s.x * w, s.y * h + cross),
+                    strokeWidth = 1.15f,
+                )
+            }
         }
-        // The very last touch: a light caught along the champagne hairline above the fold.
+        // The faintest starlight kiss along the top edge, caught inside the capsule.
         drawRect(
             brush = Brush.verticalGradient(
-                colors = listOf(Champagne.copy(alpha = 0.55f), Color.Transparent),
+                colors = listOf(Starlight.copy(alpha = 0.50f), Color.Transparent),
                 startY = 0f,
-                endY = h * 0.18f,
+                endY = h * 0.20f,
             )
         )
     }
-    // Champagne hairline rim — thin, lit from above, the last jeweller's touch.
+    // Starlight hairline rim — thin, cool, lit from above.
     drawPath(
         path = pill,
-        color = Champagne.copy(alpha = 0.28f),
-        style = Stroke(width = 1.3f),
+        color = Starlight.copy(alpha = 0.32f),
+        style = Stroke(width = 1.25f),
     )
 }
 
@@ -205,9 +253,9 @@ private fun DrawScope.drawLuxuryBurgundyCapsule() {
 /*  The row of destinations                                             */
 /* ------------------------------------------------------------------ */
 
-/** The weighted row of destinations; the selected one wears the luxurious burgundy capsule. */
+/** The weighted row of destinations; the selected one wears the jet-black space-sky capsule. */
 @Composable
-fun LuxuryNavTabItemsRow(
+fun SpaceSkyNavTabItemsRow(
     selectedIndex: Int,
     specs: List<NavTabSpec>,
     selectedContentColor: Color,
@@ -226,7 +274,7 @@ fun LuxuryNavTabItemsRow(
                     .weight(1f)
                     .fillMaxHeight()
             ) {
-                LuxuryNavTabCell(
+                SpaceSkyNavTabCell(
                     label = spec.label,
                     icon = if (isSelected) spec.selectedIcon else spec.unselectedIcon,
                     selected = isSelected,
@@ -240,9 +288,9 @@ fun LuxuryNavTabItemsRow(
     }
 }
 
-/** One destination: the burgundy capsule blooms in behind the icon when this tab is selected. */
+/** One destination: the space-sky capsule springs in behind the icon when this tab is selected. */
 @Composable
-private fun LuxuryNavTabCell(
+private fun SpaceSkyNavTabCell(
     label: String,
     icon: ImageVector,
     selected: Boolean,
@@ -253,19 +301,31 @@ private fun LuxuryNavTabCell(
 ) {
     val reveal by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow),
-        label = "LuxuryReveal",
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow),
+        label = "SpaceReveal",
     )
     val tint by animateColorAsState(
         targetValue = if (selected) selectedContentColor else unselectedContentColor,
         animationSpec = tween(durationMillis = 220),
-        label = "LuxuryTint",
+        label = "SpaceTint",
     )
     val scale by animateFloatAsState(
         targetValue = if (selected) 1f else 0.9f,
         animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow),
-        label = "LuxuryScale",
+        label = "SpaceScale",
     )
+    // The twinkle heartbeat — six stars slowly breathing out of phase.
+    val infinite = rememberInfiniteTransition(label = "StarTwinkle")
+    val twinkle by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "StarTwinklePhase",
+    )
+    val nebula = ImageBitmap.imageResource(R.drawable.tab_nebula)
     val capsule = RoundedCornerShape(percent = 50)
 
     Box(
@@ -280,13 +340,13 @@ private fun LuxuryNavTabCell(
                     .shadow(
                         elevation = 10.dp,
                         shape = capsule,
-                        ambientColor = BurgundySparkLo.copy(alpha = 0.55f),
-                        spotColor = BurgundyBody.copy(alpha = 0.55f),
+                        ambientColor = Color(0xFF0A0F1E).copy(alpha = 0.60f),
+                        spotColor = Color(0xFF16243E).copy(alpha = 0.60f),
                     )
                     .alpha(reveal)
-                    .scale(0.80f + 0.20f * reveal),
+                    .scale(0.78f + 0.22f * reveal),
             ) {
-                drawLuxuryBurgundyCapsule()
+                drawSpaceSkyCapsule(nebula = nebula, twinkle = twinkle)
             }
         }
 

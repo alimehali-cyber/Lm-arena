@@ -33,15 +33,16 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_HEIGHT
 import com.alijafari.red.astronomy.ui.components.BOTTOM_SETTINGS_SIZE
-import com.alijafari.red.astronomy.ui.components.LuxuryNavTabItemsRow
+import com.alijafari.red.astronomy.ui.components.SpaceSkyNavTabItemsRow
 import com.alijafari.red.astronomy.ui.components.NavTabSpec
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 
 
 
 /**
- * Floating Aether Telemetry Burgundy Capsule Dock: the selected tab wears a luxurious burgundy
- * (#660033) silk-gradient capsule with a woven-grain texture; the frameless optical dock
+ * Floating Aether Telemetry Space Capsule Dock: the selected tab shows a jet-black deep-space
+ * capsule — a nebula photograph with blue ribbons, violet clouds, star sprinkles and a live twinkle;
+ * the frameless optical dock
  * (`FrostedGlassFill` `#14FFFFFF`) carries a razor-thin `1.dp` directional specular rim border and
  * a crimson glow shadow. Haptic feedback on every tap.
  */
@@ -71,7 +72,7 @@ fun AetherFloatingNavBar(
                 .background(palette.frostedGlassFill)
                 .specularRimBorder(shape = shape)
         ) {
-            LuxuryNavTabItemsRow(
+            SpaceSkyNavTabItemsRow(
                 modifier = Modifier.fillMaxSize(),
                 selectedIndex = selectedTab,
                 specs = listOf(

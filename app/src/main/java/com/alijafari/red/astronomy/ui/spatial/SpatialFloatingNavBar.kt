@@ -38,18 +38,19 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_HEIGHT
 import com.alijafari.red.astronomy.ui.components.BOTTOM_SETTINGS_SIZE
-import com.alijafari.red.astronomy.ui.components.LuxuryNavTabItemsRow
+import com.alijafari.red.astronomy.ui.components.SpaceSkyNavTabItemsRow
 import com.alijafari.red.astronomy.ui.components.NavTabSpec
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 
 
 
 /**
- * VisionOS Floating Spatial Glass Burgundy Navigation Capsule.
+ * VisionOS Floating Spatial Glass Space Navigation Capsule.
  *
  * The design in Spatial chrome: a frosted G2 capsule with top-edge specular rim lighting, and
- * the selected tab shown as a luxurious burgundy (#660033) silk-gradient capsule with a
- * woven-grain texture, travelling with the circular settings button as one centred cluster.
+ * the selected tab shown as a jet-black deep-space capsule — a nebula photograph with blue
+ * ribbons, violet clouds, star sprinkles and a live twinkle, travelling with the circular
+ * settings button as one centred cluster.
  */
 @Composable
 fun SpatialFloatingNavBar(
@@ -100,7 +101,7 @@ fun SpatialFloatingNavBar(
                 }
                 .border(BorderStroke(1.dp, rimBrush), dockShape)
         ) {
-            LuxuryNavTabItemsRow(
+            SpaceSkyNavTabItemsRow(
                 modifier = Modifier.fillMaxSize(),
                 selectedIndex = selectedTab,
                 specs = listOf(

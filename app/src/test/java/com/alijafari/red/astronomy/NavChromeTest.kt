@@ -6,11 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The bottom chrome is one design on every skin: a capsule whose selected button is a luxurious
- * burgundy (#660033) silk-gradient capsule with a woven-grain texture — no simulation, no fluid —
- * plus one circular settings button, close together in one centred cluster at the bottom of the
- * screen. The object information page shows the live observatory score as a dot-matrix readout,
- * in Persian digits with ٪ in Persian mode.
+ * The bottom chrome is one design on every skin: a capsule whose selected button is a jet-black
+ * deep-space sky — a real nebula photograph with blue ribbons, violet clouds, star sprinkles and
+ * a live twinkle, springing in on selection — no simulation, no fluid — plus one circular settings
+ * button, close together in one centred cluster at the bottom of the screen. The object information
+ * page shows the live observatory score as a dot-matrix readout, in Persian digits with ٪ in Persian mode.
  */
 class NavChromeTest {
 
@@ -21,7 +21,7 @@ class NavChromeTest {
 
     private fun source(relative: String): String = file("src/main", relative)
 
-    private val luxuryPill by lazy { source("com/alijafari/red/astronomy/ui/components/LuxuryNavTabPill.kt") }
+    private val spaceSkyPill by lazy { source("com/alijafari/red/astronomy/ui/components/SpaceSkyNavTabPill.kt") }
     private val dotMatrix by lazy { source("com/alijafari/red/astronomy/ui/components/DotMatrixText.kt") }
     private val objectDetailModal by lazy { source("com/alijafari/red/astronomy/ui/components/ObjectDetailModal.kt") }
     private val defaultBar by lazy { source("com/alijafari/red/astronomy/ui/components/FloatingNavBar.kt") }
@@ -30,36 +30,43 @@ class NavChromeTest {
     private val activity by lazy { source("com/alijafari/red/astronomy/MainActivity.kt") }
 
     @Test
-    fun theSelectedTabWearsLuxuriousBurgundy() {
-        // The luxurious burgundy: #660033 heart under a silk radial, deep-wine rim.
-        assertTrue("the shared luxurious burgundy ships with the component", luxuryPill.contains("val LuxuryBurgundy = Color(0xFF660033)"))
-        assertTrue("the design's deep companion keeps the rim honest", luxuryPill.contains("0xFF2E0019"))
-        // Five passes: silk radial body, diagonal satin sheen, lacquered top light,
-        // deep inner shadow, and the micro-grain tooth.
-        assertTrue("layered silk radial gradient", luxuryPill.contains("Brush.radialGradient("))
-        assertTrue("diagonal satin sheen", luxuryPill.contains("Brush.linearGradient("))
-        assertTrue("lacquered top light", luxuryPill.contains("Brush.verticalGradient("))
-        assertTrue("woven micro-grain texture", luxuryPill.contains("GrainSpeckles"))
-        assertTrue("silk sparks catch the weave", luxuryPill.contains("SilkSparkles"))
-        assertTrue("champagne hairline rim", luxuryPill.contains("Champagne.copy(alpha = 0.28f)"))
-        // Selection bloom is a spring fade-and-scale — no per-frame simulation exists.
-        assertTrue("selection reveals with a spring", luxuryPill.contains("LuxuryReveal"))
-        assertTrue("the icon keeps its bouncy pop", luxuryPill.contains("spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow)"))
+    fun theSelectedTabWearsJetBlackSpaceSky() {
+        // The jet-black sky: a real nebula photograph under the capsule, cover-cropped to fit —
+        // blue ribbons of light, violet clouds and star sprinkles, edges falling to black.
+        assertTrue("the nebula photograph ships with the app", File("src/main/res/drawable-nodpi/tab_nebula.jpg").isFile || File("app/src/main/res/drawable-nodpi/tab_nebula.jpg").isFile)
+        assertTrue("the capsule draws the nebula photograph", spaceSkyPill.contains("ImageBitmap.imageResource(R.drawable.tab_nebula)"))
+        assertTrue("the nebula is cover-cropped to the capsule", spaceSkyPill.contains("srcOffset"))
+        assertTrue("the sky is drawn inside the capsule", spaceSkyPill.contains("clipPath(pill)"))
+        assertTrue("the rim falls to jet black at the edges", spaceSkyPill.contains("Brush.radialGradient("))
+        assertTrue("a single blade of incident light", spaceSkyPill.contains("Brush.linearGradient("))
+        assertTrue("a faint lacquer along the top edge", spaceSkyPill.contains("Brush.verticalGradient("))
+        // Star sprinkles + a live twinkle, deterministic from a fixed seed.
+        assertTrue("star sprinkle field", spaceSkyPill.contains("StarSprinkles"))
+        assertTrue("bright twinkling stars", spaceSkyPill.contains("TwinklingStars"))
+        assertTrue("the twinkle breathes", spaceSkyPill.contains("rememberInfiniteTransition"))
+        assertTrue("the twinkle loops", spaceSkyPill.contains("infiniteRepeatable("))
+        // The spring animation: the capsule springs in on selection, the icon pops with it.
+        assertTrue("spring-reveal on selection", spaceSkyPill.contains("spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow)"))
+        assertTrue("the icon keeps its bouncy pop", spaceSkyPill.contains("spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow)"))
+        assertTrue("selection reveals with a spring", spaceSkyPill.contains("SpaceReveal"))
+        // The burgundy is gone from the selected button for good.
+        assertFalse("no burgundy body remains", spaceSkyPill.contains("Burgundy"))
+        assertFalse("no grain tooth remains", spaceSkyPill.contains("GrainSpeckles"))
     }
 
     @Test
     fun noFluidAnimationRemainsAnywhereInTheChrome() {
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
-            assertTrue("$name runs the shared burgundy tab row", bar.contains("LuxuryNavTabItemsRow("))
+            assertTrue("$name runs the shared space-sky tab row", bar.contains("SpaceSkyNavTabItemsRow("))
             assertTrue("$name addresses cells through NavTabSpec", bar.contains("NavTabSpec("))
             assertFalse("$name has no simulation host", bar.contains("rememberFluidNavLensHost"))
             assertFalse("$name has no fluid canvas layer", bar.contains("FluidNavLensLayer("))
         }
         // The fluid engine itself is gone — the capsule is pure composition now.
-        assertFalse("no solver ships in the shared component", luxuryPill.contains("StableFluid"))
-        assertFalse("no simulation loop remains", luxuryPill.contains("fluidRunsLive"))
-        assertFalse("no per-frame frame loop remains", luxuryPill.contains("withFrameNanos"))
-        // Every skin keeps its own chrome; the selected tab is the shared burgundy on all of them.
+        assertFalse("no solver ships in the shared component", spaceSkyPill.contains("StableFluid"))
+        assertFalse("no simulation loop remains", spaceSkyPill.contains("fluidRunsLive"))
+        assertFalse("no per-frame frame loop remains", spaceSkyPill.contains("withFrameNanos"))
+        // Every skin keeps its own chrome; the selected tab is the shared space-sky on all of them.
         assertTrue("default keeps the wine surface capsule", defaultBar.contains("RedSurface("))
         assertTrue("aether keeps the specular rim glass", aetherBar.contains("specularRimBorder("))
         assertTrue("spatial keeps the rim-lit spatial glass", spatialBar.contains("glassElevatedFill"))
