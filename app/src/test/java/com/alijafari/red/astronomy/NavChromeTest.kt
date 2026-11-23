@@ -48,17 +48,17 @@ class NavChromeTest {
         assertTrue("the shared burgundy dye ships with the engine", engine.contains("val BurgundyFluidDye"))
         assertTrue("primary #660033", engine.contains("0xFF660033"))
         assertTrue("deep companion #2E0019", engine.contains("0xFF2E0019"))
-        // The sim lives continuously on devices with the design's 420 ms fill pulses.
+        // The sim lives continuously on devices with the design's 380 ms fill pulses.
         assertTrue("the dye keeps alive with ambient splats", engine.contains("fun ambientSplat("))
         assertTrue("live on devices, settled under the harness", engine.contains("fluidRunsLive"))
-        // The natural flow: the WebGL-Fluid-Simulation recipe — Gaussian splats, curl and
-        // vorticity confinement, a Jacobi pressure solve, and ink over a white ground so the
-        // dye always shows its wisps instead of flattening into a dark slab.
-        assertTrue("gaussian splats", engine.contains("exp(-(dx * dx + dy * dy) * inv)"))
-        assertTrue("curl", engine.contains("computeCurl"))
-        assertTrue("vorticity confinement", engine.contains("vorticityConfinement"))
-        assertTrue("pressure jacobi", engine.contains("PRESSURE_ITERATIONS"))
-        assertTrue("ink over a white ground", engine.contains("1f - exp(-d"))
+        // The design's flow: Jos Stam stable fluids on the CPU — cone splats, an 18-iteration
+        // Jacobi pressure solve behind the divergence-free projection, and a deep-burgundy to
+        // #660033 render with white only at the rim, exactly as the design codes.
+        assertTrue("cone splats", engine.contains("1f - d2.toFloat() / r2"))
+        assertTrue("pressure-projected divergence-free field", engine.contains("private fun project()"))
+        assertTrue("jacobi pressure solve", engine.contains("linSolve(p, div, 1f, 4f, 18)"))
+        assertTrue("deep-burgundy to #660033 with white only at the rim",
+            engine.contains("smoothstep(0.03f, 0.55f, t)"))
         for ((name, bar) in listOf("default" to defaultBar, "spatial" to spatialBar, "aether" to aetherBar)) {
             assertTrue("$name runs the shared fluid lens", bar.contains("rememberFluidNavLensHost("))
             assertTrue("$name draws the fluid layer", bar.contains("FluidNavLensLayer("))
