@@ -240,7 +240,10 @@ fun SettingsExpandableRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                    .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
+                    .clip(squircleShape(RedCornerRadius.lg))
+                    .background(skin.panel)
+                    .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 content = content
             )

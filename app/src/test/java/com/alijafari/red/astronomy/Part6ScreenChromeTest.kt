@@ -62,10 +62,10 @@ class Part6ScreenChromeTest {
     fun everyLabAndSatelliteScreenInsetsItsOwnStatusBar() {
         // The band used to provide this inset. Each screen now carries it, once.
         val lab = source("com/alijafari/red/astronomy/ui/screens/LabScreen.kt")
-        assertTrue("the Lab list starts below the clock", lab.contains(".statusBarsPadding()"))
+        assertTrue("the Lab list starts below the clock", lab.contains(".statusBarsAndCutoutPadding()"))
 
         val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
-        assertTrue("so does the satellite index", stage.contains(".statusBarsPadding()"))
+        assertTrue("so does the satellite index", stage.contains(".statusBarsAndCutoutPadding()"))
     }
 
     @Test
@@ -73,7 +73,7 @@ class Part6ScreenChromeTest {
         val timeDilation = source("com/alijafari/red/astronomy/ui/screens/TimeDilationCalculatorScreen.kt")
         assertFalse("no back chip", timeDilation.contains("time_dilation_back_button"))
         assertFalse("no title band", timeDilation.contains("topBar = {"))
-        assertTrue("its own status-bar inset instead", timeDilation.contains(".statusBarsPadding()"))
+        assertTrue("its own status-bar inset instead", timeDilation.contains(".statusBarsAndCutoutPadding()"))
         assertTrue("and its explanation still reachable", timeDilation.contains("showHowItWorksDialog = true"))
 
         val gravity = source("com/zig/gravity/ui/GravitySandboxRoot.kt")
@@ -86,7 +86,7 @@ class Part6ScreenChromeTest {
         val detail = source("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt")
         assertTrue("Detail uses floating back rather than an app bar", detail.contains("detail_floating_back"))
         assertFalse("and the band with it", detail.contains("topBar = {"))
-        assertTrue("its own status-bar inset instead", detail.contains(".statusBarsPadding()"))
+        assertTrue("its own status-bar inset instead", detail.contains(".statusBarsAndCutoutPadding()"))
         assertTrue(
             "the offline state is still reported",
             detail.contains("CloudOff") || detail.contains("WifiOff")

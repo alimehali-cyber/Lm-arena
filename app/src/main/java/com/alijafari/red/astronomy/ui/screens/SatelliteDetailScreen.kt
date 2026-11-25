@@ -67,6 +67,7 @@ import java.util.Calendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.alijafari.red.astronomy.ui.theme.statusBarsAndCutoutPadding
 
 @Composable
 fun SatelliteDetailScreen(
@@ -171,7 +172,7 @@ internal fun SatelliteDetailContent(
     )
     CompositionLocalProvider(LocalZigSatTokens provides tokens, LocalSatSkin provides skin) {
         Box(modifier.fillMaxSize().background(tokens.canvas).testTag("satellite_detail_screen")) {
-            LazyColumn(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(), state = listState,
+            LazyColumn(Modifier.fillMaxSize().statusBarsAndCutoutPadding().navigationBarsPadding(), state = listState,
                 contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 74.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 item("hero") {
@@ -241,7 +242,7 @@ internal fun SatelliteDetailContent(
                 }
                 item("dossier") { DetailDossier(satelliteItem, tokens, isFa) }
             }
-            Row(Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 16.dp, top = 16.dp),
+            Row(Modifier.align(Alignment.TopStart).statusBarsAndCutoutPadding().padding(start = 16.dp, top = 16.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ZigSatIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.sat_detail_back), tokens, onBack,
                     testTag = "detail_floating_back")

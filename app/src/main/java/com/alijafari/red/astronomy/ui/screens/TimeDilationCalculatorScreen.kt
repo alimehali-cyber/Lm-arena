@@ -156,7 +156,7 @@ fun TimeDilationCalculatorScreen(
             // and the help affordance moved into the first card instead of a title row.
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(innerPadding),
             contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)

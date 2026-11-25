@@ -43,7 +43,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import com.alijafari.red.astronomy.ui.theme.statusBarsAndCutoutPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -623,7 +623,7 @@ private fun SpatialHomeSkyHero(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.xs),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
         ) {
@@ -1361,7 +1361,7 @@ private fun SpatialSkySearchOverlay(
                 elevated = true,
                 glowAccent = SpatialNeonRose,
                 modifier = Modifier
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .padding(RedSpacing.md)
                     .fillMaxWidth()
                     .testTag("home_astronomy_search_card")
@@ -1641,7 +1641,7 @@ private fun SpatialFullscreenSkyViewer(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .padding(RedSpacing.md)
                     .size(38.dp)
                     .solidSurface(

@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import com.alijafari.red.astronomy.ui.theme.statusBarsAndCutoutPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
@@ -86,7 +86,7 @@ fun TutorialOverlay(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(top = 10.dp, end = 14.dp)
                 .clip(squircleShape(16.dp))
                 .background(c.chrome)

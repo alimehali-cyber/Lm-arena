@@ -222,6 +222,10 @@ class MainActivity : ComponentActivity() {
         })
 
         setContent {
+            // The status bar is hidden for good. The system re-shows it with a bright scrim while
+            // the keyboard is up (a white band where the status bar used to be), so tuck it away
+            // again whenever the IME becomes visible. Every dialog window re-hides it too.
+            com.alijafari.red.astronomy.ui.components.HideStatusBar()
             val baseContext = LocalContext.current
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
             LaunchedEffect(uiState.selectedTab) {

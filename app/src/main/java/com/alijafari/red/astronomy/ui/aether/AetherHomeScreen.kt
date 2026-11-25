@@ -33,7 +33,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import com.alijafari.red.astronomy.ui.theme.statusBarsAndCutoutPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -1125,7 +1125,7 @@ private fun AetherSkySearchOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(palette.canvasVoid.copy(alpha = 0.92f))
-            .statusBarsPadding()
+            .statusBarsAndCutoutPadding()
             .imePadding()
             .padding(horizontal = RedSpacing.lg, vertical = 12.dp)
     ) {
@@ -1295,7 +1295,7 @@ private fun AetherFullscreenSkyViewer(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .statusBarsPadding()
+                        .statusBarsAndCutoutPadding()
                         .padding(RedSpacing.md)
                         .size(38.dp)
                         .solidSurface(

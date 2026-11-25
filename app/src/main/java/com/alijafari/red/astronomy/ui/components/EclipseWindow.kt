@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import com.alijafari.red.astronomy.ui.theme.statusBarsAndCutoutPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -170,7 +170,7 @@ private fun EclipseListPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
+            .statusBarsAndCutoutPadding()
     ) {
         // Header: back to Home, the title, and the reason the screen exists.
         Row(
@@ -454,7 +454,7 @@ private fun EclipseDetailPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
+            .statusBarsAndCutoutPadding()
             .navigationBarsPadding()
     ) {
         Row(

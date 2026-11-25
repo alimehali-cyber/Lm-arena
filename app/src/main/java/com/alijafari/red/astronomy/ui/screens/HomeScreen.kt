@@ -586,7 +586,7 @@ private fun SkySearchOverlay(
                 shape = squircleShape(RedCornerRadius.window),
                 color = RedTheme.colors.surfaceElevated,
                 modifier = Modifier
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .padding(RedSpacing.md)
                     .fillMaxWidth()
                     .testTag("home_astronomy_search_card")
@@ -1090,7 +1090,7 @@ private fun HomeSkyHero(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.xs),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
         ) {
@@ -1822,7 +1822,7 @@ private fun FullscreenSkyViewer(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .padding(RedSpacing.md)
                     .size(38.dp)
                     .solidSurface(

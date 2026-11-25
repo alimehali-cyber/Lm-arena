@@ -109,7 +109,7 @@ fun LabScreen(
             // item 8): the list starts below the clock, and keeps doing so on every device.
             modifier = modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .testTag("lab_screen"),
             contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)

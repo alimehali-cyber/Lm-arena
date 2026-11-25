@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import com.alijafari.red.astronomy.ui.theme.statusBarsAndCutoutPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -106,7 +106,7 @@ fun AetherLabScreen(
             LazyColumn(
                 modifier = modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .testTag("lab_screen"),
                 contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
                 verticalArrangement = Arrangement.spacedBy(18.dp),

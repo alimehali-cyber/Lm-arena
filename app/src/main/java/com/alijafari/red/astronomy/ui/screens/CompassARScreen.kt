@@ -1443,7 +1443,7 @@ fun CompassARScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .padding(top = 136.dp, start = 16.dp, end = 16.dp)
             )
         }
@@ -1453,7 +1453,7 @@ fun CompassARScreen(
                 text = stringResource(R.string.ar_magnetic_interference),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .padding(top = if (isCameraPermanentlyDenied() && !cameraBannerDismissed) 206.dp else 136.dp, start = 16.dp, end = 16.dp)
             )
         }
@@ -1470,7 +1470,7 @@ fun CompassARScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .padding(top = 176.dp, start = 16.dp, end = 16.dp)
             )
         }
@@ -1482,7 +1482,7 @@ fun CompassARScreen(
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(top = 12.dp)
         ) {
             RedSurface(
@@ -1656,7 +1656,7 @@ fun CompassARScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(top = RedSpacing.xs, start = RedSpacing.md, end = RedSpacing.md)
                 .fillMaxWidth()
                 .graphicsLayer { alpha = controlsAlpha }
@@ -2350,7 +2350,7 @@ fun CompassARScreen(
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(top = 54.dp)
         ) {
             RedSurface(
@@ -2630,7 +2630,7 @@ fun CompassARScreen(
             exit = fadeOut(animationSpec = tween(250)),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(top = 120.dp)
         ) {
             val applied = alignmentConfirmationDeg ?: 0f
@@ -2671,7 +2671,7 @@ fun CompassARScreen(
             exit = fadeOut(animationSpec = tween(250)),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(top = 120.dp, start = 16.dp, end = 16.dp)
         ) {
             RedSurface(
@@ -3110,7 +3110,7 @@ private fun AlignmentModeOverlay(
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                .statusBarsAndCutoutPadding()
                 .padding(top = 12.dp, start = 16.dp, end = 16.dp)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)

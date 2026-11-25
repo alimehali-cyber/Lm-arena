@@ -115,7 +115,7 @@ fun MoonDetailWindow(
                 color = RedTheme.colors.surfaceElevated,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .statusBarsPadding()
+                    .statusBarsAndCutoutPadding()
                     .navigationBarsPadding()
                     .padding(horizontal = RedSpacing.md, vertical = RedSpacing.lg)
                     .fillMaxWidth()

@@ -128,6 +128,53 @@ class NavChromeTest {
     }
 
     @Test
+    fun theCameraPunchHoleIsRespectedAndTheKeyboardHidesTheWhiteBand() {
+        val safeArea = source("com/alijafari/red/astronomy/ui/theme/SafeArea.kt")
+        // The status bar stays hidden; the punch hole does not move, so top chrome clears the
+        // cutout union instead of the (now zero) status bar inset.
+        assertTrue("cutout-aware top inset helper ships", safeArea.contains("WindowInsets.statusBars.union(WindowInsets.displayCutout)"))
+        assertTrue("the helper is the shared modifier", safeArea.contains("fun Modifier.statusBarsAndCutoutPadding()"))
+        val activity = source("com/alijafari/red/astronomy/MainActivity.kt")
+        assertTrue("the activity still hides the status bar", activity.contains("hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())"))
+        assertTrue("the activity re-hides it while the keyboard is up", activity.contains("HideStatusBar()"))
+        val bars = source("com/alijafari/red/astronomy/ui/components/SystemBars.kt")
+        assertTrue("the dialog windows watch the IME", bars.contains("WindowInsets.ime.getBottom(density)"))
+        assertTrue("the white band is tucked away whenever the keyboard is up", bars.contains("LaunchedEffect(imeBottomPx > 0)"))
+        assertTrue("the bar is re-hidden, not shown", bars.contains("hide(WindowInsetsCompat.Type.statusBars())"))
+        val manifestText = java.io.File("src/main/AndroidManifest.xml").takeIf { it.isFile }?.readText()
+            ?: java.io.File("app/src/main/AndroidManifest.xml").readText()
+        assertTrue("the window claims the cutout deliberately", manifestText.contains("android:windowLayoutInDisplayCutoutMode="shortEdges""))
+        // No screen still leans on the bare status bar inset alone.
+        for (relative in listOf(
+            "com/alijafari/red/astronomy/ui/screens/LabScreen.kt",
+            "com/alijafari/red/astronomy/ui/screens/HomeScreen.kt",
+            "com/alijafari/red/astronomy/ui/screens/CompassARScreen.kt",
+            "com/alijafari/red/astronomy/ui/aether/AetherHomeScreen.kt",
+            "com/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen.kt",
+            "com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt",
+            "com/alijafari/red/astronomy/ui/monuments/MonumentScreen.kt",
+            "com/alijafari/red/astronomy/ui/components/EclipseWindow.kt",
+            "com/alijafari/red/astronomy/ui/components/MoonDetailWindow.kt",
+        )) {
+            assertTrue("$relative clears the punch hole", source(relative).contains("statusBarsAndCutoutPadding()"))
+            assertFalse("$relative does not lean on the zero status inset alone", source(relative).contains("statusBarsPadding()"))
+        }
+    }
+
+    @Test
+    fun theSettingsDropdownOpensWithSquircles() {
+        val scaffold = source("com/alijafari/red/astronomy/ui/components/SettingsMenuScaffold.kt")
+        // When a drop-down section unfolds, its options open inside one squircle menu panel —
+        // not as loose rows on the row's background.
+        val expandable = scaffold.substringAfter("fun SettingsExpandableRow").substringBefore("/** A radio-style option row")
+        assertTrue("the dropdown panel is a squircle", expandable.contains(".clip(squircleShape(RedCornerRadius.lg))"))
+        assertTrue("the dropdown panel wears the elevated menu tone", expandable.contains(".background(skin.panel)"))
+        assertTrue("the dropdown keeps the design's inner padding", expandable.contains(".padding(8.dp)"))
+        // The options inside stay squircles too.
+        assertTrue("option rows stay squircles", scaffold.contains(".clip(squircleShape(RedCornerRadius.md))"))
+    }
+
+    @Test
     fun theLiveScoreIsAPersianDotMatrixReadout() {
         // The score renders as a dot-matrix readout, not a raw English percentage.
         assertTrue("the modal renders the score through the dot-matrix readout", objectDetailModal.contains("DotMatrixScore("))
