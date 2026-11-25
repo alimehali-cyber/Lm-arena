@@ -36,6 +36,7 @@ import com.alijafari.red.astronomy.ar.core.SkyAtmosphere
 import com.alijafari.red.astronomy.ar.core.SkyRenderModel
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ObjectType
+import com.alijafari.red.astronomy.ui.satellites.SatelliteGlyph
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -69,8 +70,12 @@ class ArOverlayOptions(
     val showSun: Boolean,
     val showDeepSky: Boolean,
     val showSatellites: Boolean,
+    /** Satellite families enabled in the AR Filters panel. */
+    val satelliteFamilies: Set<ArSatelliteFamily> = ArSatelliteFamily.ALL,
     val showMeteors: Boolean,
     val showNames: Boolean,
+    /** True when the simulated-sky landscape is painted: nothing under the horizon is visible. */
+    val hideBelowHorizon: Boolean = false,
     val isFa: Boolean,
     val timeMs: Long,
     val selectedId: String?,
@@ -266,7 +271,7 @@ object ArSkyOverlay {
             val x = e[i * 3].toDouble(); val y = e[i * 3 + 1].toDouble(); val z = e[i * 3 + 2].toDouble()
             if (x * bore[0] + y * bore[1] + z * bore[2] < cosLimit) continue
             val belowHorizon = z < -0.003
-            if (belowHorizon && !opts.cameraMode) continue
+            if (belowHorizon && (!opts.cameraMode || opts.hideBelowHorizon)) continue
             val m = snapshot.starMag[i].toDouble()
             if (m > 50.0) continue
             // Occulted by the Moon's disc.
@@ -323,7 +328,7 @@ object ArSkyOverlay {
                 val pl = snapshot.placementOf(obj.id) ?: continue
                 x = pl.enu[0]; y = pl.enu[1]; z = pl.enu[2]
             }
-            if (!opts.cameraMode && z < -0.003) continue
+            if ((!opts.cameraMode || opts.hideBelowHorizon) && z < -0.003) continue
             if (!camera.project(x, y, z, state.p)) continue
             if (state.p[0] < -40 || state.p[0] > w + 40 || state.p[1] < -40 || state.p[1] > h + 40) continue
             val alt = ArSkyFrame.altitudeDeg(doubleArrayOf(x, y, z))
@@ -355,6 +360,7 @@ object ArSkyOverlay {
                 ArBodyKind.JOVIAN_MOON -> if (!opts.showPlanets) continue
             }
             val pl = b.placed
+            if (opts.hideBelowHorizon && pl.altDeg < -0.3) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]
             if (px < -300 || px > w + 300 || py < -300 || py > h + 300) continue
@@ -545,7 +551,7 @@ object ArSkyOverlay {
         for (obj in catalogue) {
             if (obj.type !in deepSkyTypes) continue
             val pl = snapshot.placementOf(obj.id) ?: continue
-            if (!opts.cameraMode && pl.altDeg < -0.3) continue
+            if ((!opts.cameraMode || opts.hideBelowHorizon) && pl.altDeg < -0.3) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]
             if (px < -120 || px > w + 120 || py < -120 || py > h + 120) continue
@@ -587,36 +593,71 @@ object ArSkyOverlay {
         opts: ArOverlayOptions, w: Float, h: Float
     ) {
         val byId = catalogue.associateBy { it.id }
+        val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         for (s in satellites) {
+            // The sub-filters are the same families the Satellites screen exposes on its globe.
+            if (s.family !in opts.satelliteFamilies) continue
             val obj = ArScreenSupport.satelliteIdsFor(s).firstNotNullOfOrNull { byId[it] }
                 ?: s.dynamicCelestialObject
                 ?: continue
             val pl = snapshot.placementOf(s.id) ?: continue
-            if (pl.altDeg < -0.5 && !opts.cameraMode) continue
+            if ((opts.hideBelowHorizon || !opts.cameraMode) && pl.altDeg < -0.5) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]
             if (px < -80 || px > w + 80 || py < -80 || py > h + 80) continue
             val below = pl.altDeg < 0.0
+            val visibility = if (below) 0.4f else 1f
+
             if (s.sunlit) {
-                // Motion streak over the last 20 s.
+                // Motion streak over the last 20 s. The halo keeps a sunlit spacecraft findable
+                // against the camera image; the glyph itself is the Satellites screen's silhouette.
                 state.linePaint.strokeWidth = 1.4f * opts.density
                 var lastX = px; var lastY = py
                 for ((k, t) in s.trail.withIndex()) {
                     val e = ArSkyFrame.enuFromAltAz(t.second, t.first)
                     if (!camera.project(e[0], e[1], e[2], state.q)) break
-                    val a = (110 * (1.0 - k * 0.45) * (if (below) 0.4 else 1.0)).toInt().coerceIn(0, 255)
+                    val a = (110 * (1.0 - k * 0.45) * visibility).toInt().coerceIn(0, 255)
                     state.linePaint.color = android.graphics.Color.argb(a, 230, 238, 255)
                     nc.drawLine(lastX, lastY, state.q[0], state.q[1], state.linePaint)
                     lastX = state.q[0]; lastY = state.q[1]
                 }
-                drawPoint(nc, state, glyphs, px, py, s.magnitude, 0.65, opts, null, pl, snapshot, if (below) 0.4f else 1f)
+                drawPoint(nc, state, glyphs, px, py, s.magnitude, 0.65, opts, null, pl, snapshot, 0.35f * visibility, haloOnly = true)
+            }
+
+            val size = (if (s.isTrainPearl) 18f else 21f) * opts.density
+            val iconColor = android.graphics.Color.argb(
+                (235 * visibility).toInt().coerceIn(0, 255), 244, 249, 255
+            )
+            val item = s.satelliteItem
+            if (s.isTrainPearl) {
+                SatelliteGlyph.drawPearl(
+                    canvas = nc, color = iconColor,
+                    left = px - size / 2f, top = py - size / 2f,
+                    width = size, height = size * 0.62f,
+                    strokeWidthPx = (1.2f * opts.density).coerceAtLeast(0.8f),
+                    paint = iconPaint
+                )
             } else {
+                SatelliteGlyph.drawSilhouette(
+                    canvas = nc,
+                    category = item?.category ?: com.alijafari.red.astronomy.astro_engine.SatelliteCategory.STARLINK,
+                    id = item?.id ?: "starlink_${s.noradId}",
+                    color = iconColor,
+                    left = px - size / 2f, top = py - size / 2f,
+                    width = size, height = size,
+                    paint = iconPaint
+                )
+            }
+
+            if (!s.sunlit) {
                 // In the Earth's shadow: invisible in reality; a faint ring keeps it findable.
                 state.linePaint.strokeWidth = 1f * opts.density
-                state.linePaint.color = android.graphics.Color.argb(if (below) 50 else 110, 160, 175, 200)
-                nc.drawCircle(px, py, 4f * opts.density, state.linePaint)
+                state.linePaint.color = android.graphics.Color.argb((if (below) 50 else 110), 160, 175, 200)
+                nc.drawCircle(px, py, size * 0.42f, state.linePaint)
             }
-            state.items.add(ArDrawnItem(obj, px, py, 6f * opts.density, pl.altDeg, s.labelPriority, s.autoLabelInSky))
+            state.items.add(
+                ArDrawnItem(obj, px, py, size * 0.55f, pl.altDeg, s.labelPriority, s.autoLabelInSky)
+            )
         }
     }
 
@@ -629,21 +670,41 @@ object ArSkyOverlay {
         catalogue: List<CelestialObject>, opts: ArOverlayOptions, w: Float, h: Float
     ) {
         val paint = state.linePaint
+        val fill = state.fillPaint
         for (obj in catalogue) {
             if (obj.type != ObjectType.METEOR_SHOWER) continue
             if (!ArScreenSupport.isShowerActive(obj, snapshot.timeMs)) continue
             val pl = snapshot.placementOf(obj.id) ?: continue
+            if (opts.hideBelowHorizon && pl.altDeg < -0.5) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]
             if (px < -40 || px > w + 40 || py < -40 || py > h + 40) continue
-            paint.strokeWidth = 1.1f * opts.density
-            paint.color = android.graphics.Color.argb(if (pl.altDeg < 0) 60 else 150, 255, 214, 150)
-            val r1 = 4f * opts.density; val r2 = 11f * opts.density
-            for (k in 0 until 8) {
-                val a = Math.toRadians(k * 45.0 + 22.5)
-                nc.drawLine(px + (r1 * cos(a)).toFloat(), py + (r1 * sin(a)).toFloat(), px + (r2 * cos(a)).toFloat(), py + (r2 * sin(a)).toFloat(), paint)
+
+            // A meteor, not an eight-spoke sun: a bright head with a warm, tapering trail running
+            // into it from the upper left. The head sits exactly on the shower's radiant.
+            val alpha = if (pl.altDeg < 0) 80 else 205
+            val length = 18f * opts.density
+            val tailDx = -0.71f; val tailDy = -0.70f
+            paint.strokeCap = android.graphics.Paint.Cap.ROUND
+            for (k in 0 until 7) {
+                val t0 = k / 7f
+                val t1 = (k + 1) / 7f
+                paint.strokeWidth = (0.4f + 2.0f * t1) * opts.density
+                paint.color = android.graphics.Color.argb(
+                    (alpha * (0.12 + 0.88 * t1)).toInt().coerceIn(0, 255), 255, 224, 176
+                )
+                nc.drawLine(
+                    px + tailDx * length * t0, py + tailDy * length * t0,
+                    px + tailDx * length * t1, py + tailDy * length * t1, paint
+                )
             }
-            state.items.add(ArDrawnItem(obj, px, py, r2, pl.altDeg, 40.0))
+            fill.color = android.graphics.Color.argb((alpha * 0.28f).toInt(), 255, 206, 140)
+            nc.drawCircle(px, py, 7f * opts.density, fill)
+            fill.color = android.graphics.Color.argb(alpha, 255, 246, 222)
+            nc.drawCircle(px, py, 3f * opts.density, fill)
+            fill.color = android.graphics.Color.argb(alpha, 255, 255, 255)
+            nc.drawCircle(px, py, 1.2f * opts.density, fill)
+            state.items.add(ArDrawnItem(obj, px, py, 10f * opts.density, pl.altDeg, 40.0))
         }
     }
 
@@ -664,7 +725,7 @@ object ArSkyOverlay {
                 if (i * 3 + 2 >= labels.size) break
                 if (c.rank > 2 && opts.zoom < 1.6) continue
                 val x = labels[i * 3].toDouble(); val y = labels[i * 3 + 1].toDouble(); val z = labels[i * 3 + 2].toDouble()
-                if (!opts.cameraMode && z < 0.02) continue
+                if ((!opts.cameraMode || opts.hideBelowHorizon) && z < 0.02) continue
                 if (!camera.project(x, y, z, state.p)) continue
                 val px = state.p[0]; val py = state.p[1]
                 if (px < 0 || px > w || py < 0 || py > h) continue

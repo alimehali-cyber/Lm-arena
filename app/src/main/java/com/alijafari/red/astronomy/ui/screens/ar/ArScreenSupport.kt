@@ -15,12 +15,14 @@ import com.alijafari.red.astronomy.ar.core.V3
 import com.alijafari.red.astronomy.astro_engine.AlignmentTarget
 import com.alijafari.red.astronomy.astro_engine.ARCalibrationManager
 import com.alijafari.red.astronomy.astro_engine.AstroTime
+import com.alijafari.red.astronomy.astro_engine.SearchResult
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.FinderData
 import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.LunarSolarEngine
 import com.alijafari.red.astronomy.astro_engine.PlanetEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
+import com.alijafari.red.astronomy.astro_engine.SatelliteCategory
 import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteItem
 import com.alijafari.red.astronomy.astro_engine.StarlinkTrainManager
@@ -39,6 +41,31 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/** Satellite families exposed by the AR filters, mirroring the Satellites screen's globe layers. */
+enum class ArSatelliteFamily(val labelEn: String, val labelFa: String) {
+    ISS("ISS", "ایستگاه فضایی"),
+    STARLINK("Starlink", "استارلینک"),
+    HUBBLE("Hubble", "هابل"),
+    TIANGONG("Tiangong", "تیانگونگ"),
+    EARTH_OBSERVATION("Earth observation", "رصد زمین"),
+    OTHER("Other", "سایر");
+
+    companion object {
+        val ALL: Set<ArSatelliteFamily> = setOf(ISS, STARLINK, HUBBLE, TIANGONG, EARTH_OBSERVATION, OTHER)
+    }
+}
+
+/** The family a tracked satellite belongs to, from the same catalogue the Satellites screen uses. */
+fun arSatelliteFamily(item: SatelliteItem?): ArSatelliteFamily = when {
+    item == null -> ArSatelliteFamily.OTHER
+    item.category == SatelliteCategory.ISS || item.noradId == 25544 -> ArSatelliteFamily.ISS
+    item.category == SatelliteCategory.HUBBLE -> ArSatelliteFamily.HUBBLE
+    item.category == SatelliteCategory.TIANGONG -> ArSatelliteFamily.TIANGONG
+    item.category == SatelliteCategory.EARTH_OBSERVATION -> ArSatelliteFamily.EARTH_OBSERVATION
+    item.category == SatelliteCategory.STARLINK || item.isTrain -> ArSatelliteFamily.STARLINK
+    else -> ArSatelliteFamily.OTHER
+}
+
 /** Live state of a tracked satellite for the AR sky. */
 class ArSatelliteInfo(
     val id: String,
@@ -56,7 +83,13 @@ class ArSatelliteInfo(
     /** Whether to render an ambient pill label when not aimed/selected (prevents train pearl clutter). */
     val autoLabelInSky: Boolean = true,
     /** Label/hit-test priority (lower = more prominent). */
-    val labelPriority: Double = if (noradId == 25544) 2.0 else 3.0
+    val labelPriority: Double = if (noradId == 25544) 2.0 else 3.0,
+    /** The catalogue item whose silhouette the AR overlay must draw. */
+    val satelliteItem: SatelliteItem? = null,
+    /** True for a pearl in a Starlink train, drawn with the Satellites screen's pearl glyph. */
+    val isTrainPearl: Boolean = false,
+    /** Family used by the AR satellite sub-filters. */
+    val family: ArSatelliteFamily = arSatelliteFamily(satelliteItem)
 )
 
 object ArScreenSupport {
@@ -104,7 +137,8 @@ object ArScreenSupport {
                         trail = trail,
                         dynamicCelestialObject = null,
                         autoLabelInSky = true,
-                        labelPriority = if (sat.noradId == 25544) 2.0 else 3.0
+                        labelPriority = if (sat.noradId == 25544) 2.0 else 3.0,
+                        satelliteItem = sat
                     )
                 )
             } catch (e: Exception) {
@@ -155,7 +189,9 @@ object ArScreenSupport {
                                     magnitude = now.apparentMagnitude
                                 ),
                                 autoLabelInSky = isLeader,
-                                labelPriority = if (isLeader) 2.6 else 22.0
+                                labelPriority = if (isLeader) 2.6 else 22.0,
+                                satelliteItem = pearl,
+                                isTrainPearl = true
                             )
                         )
                     }
@@ -187,7 +223,8 @@ object ArScreenSupport {
                                 magnitude = now.apparentMagnitude
                             ),
                             autoLabelInSky = now.isNakedEyeVisible,
-                            labelPriority = 18.0
+                            labelPriority = 18.0,
+                            satelliteItem = sat
                         )
                     )
                 }
@@ -196,18 +233,119 @@ object ArScreenSupport {
             }
         }
 
-        // A Passes → AR hand-off can select a satellite that is not in the live overhead shortlist.
+        // A Passes → AR hand-off, or a satellite picked from the AR search, can target an object that is
+        // not in the live overhead shortlist. Add exactly that one so the finder has a live place to
+        // point at — without inflating the sky with the whole TLE catalogue.
         val focused = focusedId?.removePrefix("sat_")?.toIntOrNull()?.let { norad ->
-            if (norad in seenNorads) null else SatelliteCatalog.getDynamicByIdOrNorad("sat_$norad")
+            if (norad in seenNorads) null else satelliteItemForNorad(norad)
         }
         if (focused != null) {
-            val now = SatelliteEngine.calculateSatelliteState(focused, timeMs, lat, lon, heightM)
+            val now = SatelliteEngine.calculateSatelliteState(focused, timeMs, lat, lon, heightM, focused.defaultTle)
             val topo = now.topocentric
             out.add(ArSatelliteInfo("sat_${focused.noradId}", focused.noradId, topo.azimuthDeg, topo.elevationDeg,
                 topo.rangeKm, topo.isSunlit, now.apparentMagnitude, now.tleMetadata, emptyList(),
-                targetForSatellite(focused, magnitude = now.apparentMagnitude), autoLabelInSky = true, labelPriority = 2.6))
+                targetForSatellite(focused, magnitude = now.apparentMagnitude), autoLabelInSky = true, labelPriority = 2.6,
+                satelliteItem = focused))
         }
         return out
+    }
+
+    /**
+     * Resolve a NORAD id to a satellite item even when it is not part of the current train snapshot:
+     * the AR search can find any cached Starlink, so the target must remain drawable after selection.
+     */
+    internal fun satelliteItemForNorad(norad: Int): SatelliteItem? {
+        SatelliteCatalog.getDynamicByIdOrNorad("sat_$norad")?.let { return it }
+        val meta = TleRepository.peekInstance()?.getTleWithMetadata(norad) ?: return null
+        return SatelliteItem(
+            id = "starlink_$norad",
+            noradId = norad,
+            nameEn = meta.tleData.name.takeIf { it.isNotBlank() } ?: "Starlink $norad",
+            nameFa = "استارلینک $norad",
+            category = SatelliteCategory.STARLINK,
+            defaultTle = meta.tleData,
+            standardMagnitude = 5.0
+        )
+    }
+
+    /**
+     * AR search: every satellite the Satellites screen tracks, with its live topocentric place.
+     *
+     * The catalogue search already covers the four named spacecraft. This adds the cached Starlink
+     * fleet, so searching "Starlink" or a NORAD number is not limited to whatever happens to be
+     * overhead at this instant. Below-horizon results stay in the list, honestly labelled: a pass
+     * that has not risen yet is still a legitimate target to find.
+     */
+    internal fun satelliteSearchResults(
+        query: String,
+        timeMs: Long,
+        lat: Double,
+        lon: Double,
+        heightM: Double,
+        alreadyHave: Set<Int>
+    ): List<SearchResult> {
+        val tokens = query.trim().lowercase(Locale.US).split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return emptyList()
+        val candidates = LinkedHashMap<Int, SatelliteItem>()
+        for (sat in SatelliteCatalog.satellites) candidates[sat.noradId] = sat
+        TleRepository.peekInstance()?.getStarlinkTles()?.forEach { tle ->
+            val norad = tle.name.trim().removePrefix("0").toIntOrNull()
+                ?: Regex("""\b(\d{4,6})[A-Z]?\b""").find(tle.name)?.groupValues?.get(1)?.toIntOrNull()
+            if (norad != null && norad !in candidates && norad !in alreadyHave) {
+                candidates[norad] = SatelliteItem(
+                    id = "starlink_$norad",
+                    noradId = norad,
+                    nameEn = tle.name.takeIf { it.isNotBlank() } ?: "Starlink $norad",
+                    nameFa = "استارلینک $norad",
+                    category = SatelliteCategory.STARLINK,
+                    defaultTle = tle,
+                    standardMagnitude = 5.0
+                )
+            }
+        }
+        val scored = ArrayList<Pair<Int, SearchResult>>()
+        // Propagation is cheap per object but the cached shell can hold thousands of TLEs; a search
+        // is an interactive lookup, so bound the work and keep the results sorted by relevance.
+        for (sat in candidates.values.take(240)) {
+            if (sat.noradId in alreadyHave) continue
+            val family = arSatelliteFamily(sat)
+            val haystack = listOf(
+                sat.nameEn, sat.nameFa, sat.designation, sat.noradId.toString(),
+                sat.category.labelEn, sat.category.labelFa, family.labelEn, family.labelFa,
+                "starlink", "استارلینک", "satellite", "ماهواره"
+            )
+            if (!tokens.all { token -> haystack.any { it.contains(token, ignoreCase = true) } }) continue
+            val state = try {
+                // Dynamic Starlinks come with their own cached elements; named spacecraft must keep
+                // using the engine's live/cached TLE selection, exactly as the AR overlay does.
+                val explicitTle = if (sat.id.startsWith("starlink_")) sat.defaultTle else null
+                SatelliteEngine.calculateSatelliteState(sat, timeMs, lat, lon, heightM, explicitTle)
+            } catch (e: Exception) {
+                continue
+            }
+            val topo = state.topocentric
+            val above = topo.elevationDeg > 0.0
+            val score = when {
+                sat.nameEn.equals(query, true) || sat.nameFa == query || sat.noradId.toString() == query.trim() -> 100
+                sat.nameEn.startsWith(query, true) || sat.nameFa.startsWith(query) -> 92
+                else -> 70
+            }
+            val result = SearchResult(
+                celestialObject = targetForSatellite(sat, magnitude = state.apparentMagnitude),
+                altitudeDeg = topo.elevationDeg,
+                azimuthDeg = topo.azimuthDeg,
+                isVisibleNow = above,
+                statusFa = if (!above) "زیر افق" else if (topo.isSunlit) "بالای افق · روشن" else "بالای افق · در سایه زمین",
+                statusEn = if (!above) "Below horizon" else if (topo.isSunlit) "Above horizon · sunlit" else "Above horizon · in shadow",
+                matchScore = score
+            )
+            scored.add(score to result)
+        }
+        return scored.sortedWith(
+            compareByDescending<Pair<Int, SearchResult>> { it.first }
+                .thenByDescending { it.second.isVisibleNow }
+                .thenBy { it.second.celestialObject.nameEn }
+        ).map { it.second }.take(12)
     }
 
     internal fun targetForSatellite(

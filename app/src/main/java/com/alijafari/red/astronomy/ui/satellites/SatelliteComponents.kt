@@ -51,7 +51,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
@@ -143,83 +146,47 @@ internal fun SatAvatar(item: SatelliteItem, tokens: ZigSatTokens, size: Dp = 40.
     }
 }
 
-/** Simple, intentionally literal silhouettes: each instrument/station has a distinct physical outline. */
+/**
+ * Simple, intentionally literal silhouettes: each instrument/station has a distinct physical outline.
+ *
+ * The geometry lives in [SatelliteGlyph] so the AR sky overlay can draw the very same spacecraft
+ * rather than a generic dot. This composable is only the theme-aware wrapper for the Satellites UI.
+ */
 @Composable
 internal fun SatelliteSilhouette(item: SatelliteItem, color: Color, modifier: Modifier = Modifier) {
+    val argb = color.toArgb()
     Canvas(modifier) {
-        fun p(x: Float, y: Float) = Offset(size.width * x, size.height * y)
-        fun rect(left: Float, top: Float, right: Float, bottom: Float) =
-            androidx.compose.ui.geometry.Offset(size.width * left, size.height * top) to
-                androidx.compose.ui.geometry.Size(size.width * (right - left), size.height * (bottom - top))
-        fun line(a: Pair<Float, Float>, b: Pair<Float, Float>, width: Float = .055f) =
-            drawLine(color, p(a.first, a.second), p(b.first, b.second), size.minDimension * width, StrokeCap.Round)
-        fun panel(left: Float, top: Float, right: Float, bottom: Float, rows: Int = 2) {
-            val (offset, bounds) = rect(left, top, right, bottom)
-            drawRect(color.copy(alpha = .72f), offset, bounds)
-            drawRect(color.copy(alpha = .92f), offset, bounds, style = Stroke(size.minDimension * .028f))
-            for (i in 1 until rows) {
-                val y = top + (bottom - top) * i / rows
-                line(left to y, right to y, .018f)
-            }
-            val x = (left + right) / 2f
-            line(x to top, x to bottom, .018f)
-        }
-        val iss = item.category == SatelliteCategory.ISS || item.id == "iss_zarya"
-        val hubble = item.category == SatelliteCategory.HUBBLE || item.id.contains("hubble", true)
-        val tiangong = item.id.contains("tiangong", true)
-        when {
-            iss -> {
-                // ISS: long integrated truss with four broad solar-array wings.
-                line(.12f to .50f, .88f to .50f, .065f)
-                panel(.04f, .17f, .32f, .39f, 3); panel(.04f, .61f, .32f, .83f, 3)
-                panel(.68f, .17f, .96f, .39f, 3); panel(.68f, .61f, .96f, .83f, 3)
-                val (o, b) = rect(.40f, .35f, .60f, .65f)
-                drawRoundRect(color, o, b, androidx.compose.ui.geometry.CornerRadius(size.minDimension * .07f))
-                line(.50f to .30f, .50f to .70f, .025f)
-            }
-            hubble -> {
-                // Hubble: open aperture, long cylindrical telescope bus and two side arrays.
-                panel(.02f, .34f, .23f, .66f, 2); panel(.77f, .34f, .98f, .66f, 2)
-                line(.22f to .50f, .77f to .50f, .075f)
-                val (o, b) = rect(.37f, .31f, .64f, .69f)
-                drawRoundRect(color, o, b, androidx.compose.ui.geometry.CornerRadius(size.minDimension * .09f))
-                drawCircle(color.copy(alpha = .56f), size.minDimension * .10f, p(.70f, .50f))
-                drawCircle(color, size.minDimension * .06f, p(.70f, .50f))
-            }
-            tiangong -> {
-                // Tiangong's T-shaped module stack and deployed solar wings.
-                panel(.02f, .30f, .28f, .47f, 2); panel(.72f, .30f, .98f, .47f, 2)
-                line(.24f to .39f, .76f to .39f, .05f)
-                val (core, coreSize) = rect(.42f, .30f, .58f, .78f)
-                drawRoundRect(color, core, coreSize, androidx.compose.ui.geometry.CornerRadius(size.minDimension * .06f))
-                val (lab, labSize) = rect(.28f, .47f, .72f, .61f)
-                drawRoundRect(color, lab, labSize, androidx.compose.ui.geometry.CornerRadius(size.minDimension * .06f))
-            }
-            item.category == SatelliteCategory.EARTH_OBSERVATION || item.id.contains("envisat", true) -> {
-                // Envisat: compact instrument bus and one long, offset solar-array wing.
-                panel(.57f, .20f, .98f, .80f, 3)
-                line(.48f to .50f, .62f to .50f, .045f)
-                val (o, b) = rect(.16f, .32f, .50f, .68f)
-                drawRoundRect(color, o, b, androidx.compose.ui.geometry.CornerRadius(size.minDimension * .04f))
-                line(.24f to .32f, .24f to .14f, .025f)
-            }
-            else -> {
-                // Starlink: compact flatbus with one broad deployable solar wing.
-                panel(.03f, .22f, .58f, .78f, 3)
-                line(.56f to .50f, .68f to .50f, .045f)
-                val (o, b) = rect(.64f, .34f, .94f, .66f)
-                drawRoundRect(color, o, b, androidx.compose.ui.geometry.CornerRadius(size.minDimension * .04f))
-            }
+        drawIntoCanvas { canvas ->
+            SatelliteGlyph.drawSilhouette(
+                canvas = canvas.nativeCanvas,
+                category = item.category,
+                id = item.id,
+                color = argb,
+                left = 0f,
+                top = 0f,
+                width = size.width,
+                height = size.height
+            )
         }
     }
 }
 
 @Composable
 internal fun PearlGlyph(color: Color, modifier: Modifier = Modifier.size(16.dp)) {
+    val argb = color.toArgb()
+    val strokePx = with(LocalDensity.current) { 1.dp.toPx() }
     Canvas(modifier) {
-        val middle = size.height / 2
-        drawLine(color.copy(alpha = .6f), Offset(size.width * .12f, middle), Offset(size.width * .88f, middle), 1.dp.toPx())
-        repeat(3) { index -> drawCircle(color, (if (index == 2) 2.5.dp else 2.dp).toPx(), Offset(size.width * (.16f + index * .34f), middle)) }
+        drawIntoCanvas { canvas ->
+            SatelliteGlyph.drawPearl(
+                canvas = canvas.nativeCanvas,
+                color = argb,
+                left = 0f,
+                top = 0f,
+                width = size.width,
+                height = size.height,
+                strokeWidthPx = strokePx
+            )
+        }
     }
 }
 

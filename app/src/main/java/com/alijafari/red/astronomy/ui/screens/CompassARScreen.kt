@@ -115,10 +115,13 @@ import com.alijafari.red.astronomy.ui.rendering.*
 import com.alijafari.red.astronomy.ui.screens.ar.ArDrawnItem
 import com.alijafari.red.astronomy.ui.screens.ar.ArOverlayOptions
 import com.alijafari.red.astronomy.ui.screens.ar.ArOverlayState
+import com.alijafari.red.astronomy.ui.screens.ar.ArSatelliteFamily
 import com.alijafari.red.astronomy.ui.screens.ar.ArSatelliteInfo
 import com.alijafari.red.astronomy.ui.screens.ar.ArScreenSupport
+import com.alijafari.red.astronomy.ui.screens.ar.ArSkyLandscape
 import com.alijafari.red.astronomy.ui.screens.ar.ArSkyOverlay
 import com.alijafari.red.astronomy.ui.screens.ar.SimulatedSkyFallback
+import com.alijafari.red.astronomy.ui.screens.ar.arMoonIlluminationPercent
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
@@ -731,6 +734,9 @@ fun CompassARScreen(
     var skySnapshot by remember { mutableStateOf<ArSkySnapshot?>(null) }
     var skyLighting by remember { mutableStateOf<ArSkyLighting?>(null) }
     var arSatellites by remember { mutableStateOf<List<ArSatelliteInfo>>(emptyList()) }
+    // Declared with the sky model: a satellite picked in AR search must be fed back into the next
+    // sky computation so it has a live place for the finder, even when it is not overhead.
+    var selectedTarget by remember { mutableStateOf<CelestialObject?>(null) }
     val observerForSky = ArObserver(
         latitudeDeg = observerLat,
         longitudeDeg = observerLon,
@@ -739,9 +745,13 @@ fun CompassARScreen(
         pressureHpa = (atmosphereReading.pressureHpa * 2.0).roundToInt() / 2.0,
         temperatureC = (atmosphereReading.temperatureC * 2.0).roundToInt() / 2.0
     )
+    val isSatelliteTarget = selectedTarget?.type == ObjectType.SATELLITE ||
+        selectedTarget?.id?.startsWith("sat_") == true ||
+        selectedTarget?.id?.startsWith("norad_") == true
+    val focusedSatelliteId = if (isSatelliteTarget) selectedTarget?.id else uiState.selectedTargetObject?.id
     val latestSkyInputs by rememberUpdatedState(
         ArSkyInputs(activeTimeMs, observerForSky, starCatalog, constellationFigures, uiState.bortleClass,
-            uiState.selectedTargetObject?.id)
+            focusedSatelliteId)
     )
     // One long-lived worker computes the sky from the latest inputs whenever they change. In-flight
     // work is never cancelled, so fast time-machine playback still advances the sky continuously.
@@ -918,7 +928,6 @@ fun CompassARScreen(
     // Search and Finder State
     var searchQuery by remember { mutableStateOf("") }
     var isSearchFocused by remember { mutableStateOf(false) }
-    var selectedTarget by remember { mutableStateOf<CelestialObject?>(null) }
     var hasVibratedForArrival by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.selectedTargetObject) {
@@ -932,39 +941,65 @@ fun CompassARScreen(
         }
     }
 
-    val searchResults = remember(searchQuery, observerLat, observerLon, jd, arSatellites) {
-        if (searchQuery.isNotBlank()) {
-            val baseResults = CelestialSearchEngine.search(
-                query = searchQuery,
-                userLat = observerLat,
-                userLon = observerLon,
-                jd = jd
-            )
-            val q = searchQuery.trim().lowercase(Locale.US)
-            val dynamicStarlinkMatches = arSatellites.mapNotNull { info ->
-                val obj = info.dynamicCelestialObject ?: return@mapNotNull null
-                val matches = obj.nameEn.lowercase(Locale.US).contains(q) ||
-                    obj.nameFa.contains(q) ||
-                    "starlink".contains(q) ||
-                    "استارلینک".contains(q) ||
-                    info.noradId.toString().contains(q)
-                if (!matches) return@mapNotNull null
-                val above = info.altitudeDeg > 0.0
-                SearchResult(
-                    celestialObject = obj,
-                    altitudeDeg = info.altitudeDeg,
-                    azimuthDeg = info.azimuthDeg,
-                    isVisibleNow = above && info.sunlit,
-                    statusFa = if (above) "بالای افق (${String.format(Locale.US, "%.0f°", info.altitudeDeg)})" else "زیر افق",
-                    statusEn = if (above) "Above horizon (${String.format(Locale.US, "%.0f°", info.altitudeDeg)})" else "Below horizon",
-                    matchScore = if (info.autoLabelInSky) 95 else 70
-                )
-            }.take(8)
-            val existingIds = baseResults.map { it.celestialObject.id }.toHashSet()
-            baseResults + dynamicStarlinkMatches.filter { it.celestialObject.id !in existingIds }
-        } else {
-            emptyList()
+    var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+    // Keyed on a minute bucket, not on `jd` itself: the live clock changes `jd` every second, which
+    // would restart (and re-run) an expensive search once per keystroke-free second.
+    LaunchedEffect(searchQuery, observerLat, observerLon, arSatellites.isNotEmpty(), activeTimeMs / 60_000L) {
+        val query = searchQuery.trim()
+        if (query.isEmpty()) {
+            searchResults = emptyList()
+            return@LaunchedEffect
         }
+        // Search walks the whole canonical catalogue and SGP4-propagates satellite candidates;
+        // debounce keystrokes and do that work off the UI thread so typing never stutters the sky.
+        delay(120L)
+        val results = withContext(Dispatchers.Default) {
+            arBackground("AR search") {
+                val base = CelestialSearchEngine.search(query, observerLat, observerLon, jd)
+                val tokens = query.lowercase(Locale.US).split(Regex("\\s+")).filter { it.isNotBlank() }
+                val liveSatellites = arSatellites.mapNotNull { info ->
+                    val obj = info.dynamicCelestialObject ?: return@mapNotNull null
+                    val starlink = info.family == ArSatelliteFamily.STARLINK || info.isTrainPearl
+                    val haystack = listOfNotNull(
+                        obj.nameEn, obj.nameFa, info.noradId.toString(),
+                        info.satelliteItem?.category?.labelEn, info.satelliteItem?.category?.labelFa,
+                        "starlink".takeIf { starlink }, "استارلینک".takeIf { starlink }
+                    )
+                    if (!tokens.all { token -> haystack.any { it.contains(token, ignoreCase = true) } }) {
+                        return@mapNotNull null
+                    }
+                    val above = info.altitudeDeg > 0.0
+                    val alt = String.format(Locale.US, "%.0f°", info.altitudeDeg)
+                    SearchResult(
+                        celestialObject = obj,
+                        altitudeDeg = info.altitudeDeg,
+                        azimuthDeg = info.azimuthDeg,
+                        // A green chip means "above the horizon"; sunlight is said in the label.
+                        isVisibleNow = above,
+                        statusFa = if (!above) "زیر افق" else if (info.sunlit) "بالای افق · روشن ($alt)" else "بالای افق · در سایه ($alt)",
+                        statusEn = if (!above) "Below horizon" else if (info.sunlit) "Above horizon · sunlit ($alt)" else "Above horizon · shadowed ($alt)",
+                        matchScore = if (info.autoLabelInSky) 95 else 70
+                    )
+                }.take(8)
+                val existingIds = (base + liveSatellites).map { it.celestialObject.id }.toHashSet()
+                val knownNorads = existingIds.mapNotNull {
+                    Regex("""sat_(\d+)""").find(it)?.groupValues?.get(1)?.toIntOrNull()
+                }.toSet()
+                // Everything else the Satellites screen tracks (cached Starlinks, not just the ones
+                // overhead right now), each with its own live topocentric position.
+                val extra = ArScreenSupport.satelliteSearchResults(
+                    query, activeTimeMs, observerLat, observerLon, observerHeightM, knownNorads
+                ).filter { it.celestialObject.id !in existingIds }
+                (base + liveSatellites + extra)
+                    .sortedWith(
+                        compareByDescending<SearchResult> { it.matchScore }
+                            .thenByDescending { it.isVisibleNow }
+                            .thenBy { it.celestialObject.nameEn }
+                    )
+                    .take(20)
+            }
+        }
+        if (results != null) searchResults = results
     }
 
     // AR Sky Zoom State: physical camera zoom while the camera is live, virtual zoom otherwise.
@@ -1064,10 +1099,27 @@ fun CompassARScreen(
     var filterSatellites by remember { mutableStateOf(prefs.getBoolean("filter_satellites", true)) }
     var filterMeteorShowers by remember { mutableStateOf(prefs.getBoolean("filter_meteor_showers", true)) }
     var filterObjectNames by remember { mutableStateOf(prefs.getBoolean("filter_object_names", false)) }
+    // Satellite sub-filters mirror the Satellites screen's globe layers; the master satellites chip
+    // above still gates all of them at once.
+    var arSatelliteFamilies by remember {
+        mutableStateOf(
+            prefs.getStringSet("filter_sat_families", null)
+                ?.mapNotNull { runCatching { ArSatelliteFamily.valueOf(it) }.getOrNull() }
+                ?.toSet()
+                ?.takeIf { it.isNotEmpty() }
+                ?: ArSatelliteFamily.ALL
+        )
+    }
+    var showArLandscape by remember { mutableStateOf(prefs.getBoolean("ar_landscape", true)) }
 
     fun updateFilter(key: String, value: Boolean, setter: (Boolean) -> Unit) {
         setter(value)
         prefs.edit().putBoolean(key, value).apply()
+    }
+
+    fun toggleSatelliteFamily(family: ArSatelliteFamily) {
+        arSatelliteFamilies = if (family in arSatelliteFamilies) arSatelliteFamilies - family else arSatelliteFamilies + family
+        prefs.edit().putStringSet("filter_sat_families", arSatelliteFamilies.map { it.name }.toSet()).apply()
     }
 
     fun setAllFilters(value: Boolean) {
@@ -1081,6 +1133,7 @@ fun CompassARScreen(
         filterSatellites = value
         filterMeteorShowers = value
         filterObjectNames = value
+        if (value) arSatelliteFamilies = ArSatelliteFamily.ALL
         prefs.edit()
             .putBoolean("filter_stars", value)
             .putBoolean("filter_unnamed_stars", value)
@@ -1092,6 +1145,7 @@ fun CompassARScreen(
             .putBoolean("filter_satellites", value)
             .putBoolean("filter_meteor_showers", value)
             .putBoolean("filter_object_names", value)
+            .putStringSet("filter_sat_families", arSatelliteFamilies.map { it.name }.toSet())
             .apply()
     }
 
@@ -1142,8 +1196,10 @@ fun CompassARScreen(
         }
     }
 
-    LaunchedEffect(lastInteractionTimeMs, activeExpandedPanel, isSearchFocused, searchQuery, selectedTarget, tappedObject, isAlignmentMode) {
-        if (activeExpandedPanel != null || isSearchFocused || searchQuery.isNotEmpty() || tappedObject != null || isAlignmentMode) {
+    LaunchedEffect(lastInteractionTimeMs, activeExpandedPanel, isSearchFocused, selectedTarget, tappedObject, isAlignmentMode) {
+        // A typed query that the user has collapsed must not keep the HUD awake forever; only an
+        // actually focused search field (keyboard open) should hold it visible.
+        if (activeExpandedPanel != null || isSearchFocused || tappedObject != null || isAlignmentMode) {
             isControlsVisible = true
             return@LaunchedEffect
         }
@@ -1229,6 +1285,20 @@ fun CompassARScreen(
                     }
                 )
             }
+        }
+
+        // Layer 0.5: the sky canvas's ground band, seated on the camera model's true horizon. It is
+        // painted only over the simulated sky; a live camera already shows the real landscape. The
+        // overlay draws above it and hides below-horizon objects so nothing floats over the ground.
+        if (showSimulatedSky && showArLandscape && !isAlignmentMode) {
+            ArSkyLandscape(
+                cameraModel = composeCameraModel,
+                theme = uiState.skyCanvasTheme,
+                sunAltDeg = Math.toDegrees(skyLighting?.sunElevRad ?: 0.0),
+                moonAltDeg = Math.toDegrees(skyLighting?.moonElevRad ?: 0.0),
+                moonIlluminationPercent = arMoonIlluminationPercent(skySnapshot?.moon?.glyph?.phaseAngleDeg),
+                modifier = Modifier.fillMaxSize().testTag("ar_sky_landscape")
+            )
         }
 
         // Layer 1: Live Camera Feed (removed after a bind failure so the simulated sky shows instead of
@@ -1377,8 +1447,10 @@ fun CompassARScreen(
                         showSun = filterSun,
                         showDeepSky = filterDeepSky,
                         showSatellites = filterSatellites,
+                        satelliteFamilies = arSatelliteFamilies,
                         showMeteors = filterMeteorShowers,
                         showNames = filterObjectNames,
+                        hideBelowHorizon = showSimulatedSky && showArLandscape,
                         isFa = isFa,
                         timeMs = System.currentTimeMillis(),
                         selectedId = selectedTarget?.id,
@@ -1768,7 +1840,7 @@ fun CompassARScreen(
                     icon = Icons.Default.FilterList,
                     label = if (isFa) "فیلترها" else "Filters",
                     isActive = activeExpandedPanel == ArExpandedPanel.FILTERS,
-                    isHighlighted = !(filterStars && filterConstellations && filterPlanets && filterMoons && filterSun && filterDeepSky && filterSatellites && filterMeteorShowers && filterObjectNames),
+                    isHighlighted = !(filterStars && filterUnnamedStars && filterConstellations && filterPlanets && filterMoons && filterSun && filterDeepSky && filterSatellites && filterMeteorShowers && filterObjectNames) || arSatelliteFamilies != ArSatelliteFamily.ALL,
                     testTag = "ar_pill_filters",
                     onClick = {
                         activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.FILTERS) null else ArExpandedPanel.FILTERS
@@ -1780,7 +1852,7 @@ fun CompassARScreen(
                     icon = Icons.Default.Sensors,
                     label = if (isFa) "حسگرها" else "Sensors",
                     isActive = activeExpandedPanel == ArExpandedPanel.SENSORS,
-                    isHighlighted = isGpsActive && isSensorActive,
+                    isHighlighted = !(isGpsActive && isSensorActive),
                     testTag = "ar_pill_sensors",
                     onClick = {
                         activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.SENSORS) null else ArExpandedPanel.SENSORS
@@ -1811,7 +1883,10 @@ fun CompassARScreen(
                     color = chrome.fillStrong,
                     border = BorderStroke(1.dp, chrome.stroke),
                     elevation = RedElevation.floating,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Keep the result list above the soft keyboard while typing a target name.
+                        .then(if (activeExpandedPanel == ArExpandedPanel.SEARCH) Modifier.imePadding() else Modifier)
                 ) {
                     when (activeExpandedPanel) {
                         ArExpandedPanel.SEARCH -> {
@@ -1834,7 +1909,7 @@ fun CompassARScreen(
                                         onValueChange = { searchQuery = it },
                                         placeholder = {
                                             Text(
-                                                text = if (isFa) "جستجوی جرم (ماه، مریخ، شباهنگ...)" else "Search target (Moon, Mars, Sirius...)",
+                                                text = if (isFa) "جرم، ماهواره یا شماره NORAD (ماه، استارلینک، 25544...)" else "Target, satellite or NORAD (Moon, Starlink, 25544...)",
                                                 style = RedTypographyTokens.bodyPrimary,
                                                 color = RedTheme.colors.textSecondary
                                             )
@@ -1908,6 +1983,7 @@ fun CompassARScreen(
                                                     .testTag("ar_search_result_${result.celestialObject.id}")
                                                     .clickable {
                                                         selectedTarget = result.celestialObject
+                                                        hasVibratedForArrival = false
                                                         searchQuery = ""
                                                         activeExpandedPanel = null // Collapse panel on target select
                                                     }
@@ -1966,6 +2042,29 @@ fun CompassARScreen(
                                     )
                                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         items(quickSuggestions) { sug ->
+                                            ChromeToggleChip(
+                                                label = sug,
+                                                selected = false,
+                                                onClick = { searchQuery = sug }
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = if (isFa) "ماهواره‌ها:" else "Satellites:",
+                                        style = RedTypographyTokens.badge,
+                                        color = RedTheme.colors.textSecondary,
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 6.dp)
+                                    )
+                                    val satelliteSuggestions = if (isFa) {
+                                        listOf("استارلینک", "هابل", "تیانگونگ", "ایستگاه فضایی", "25544")
+                                    } else {
+                                        listOf("Starlink", "Hubble", "Tiangong", "ISS", "25544")
+                                    }
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.testTag("ar_satellite_suggestions")
+                                    ) {
+                                        items(satelliteSuggestions) { sug ->
                                             ChromeToggleChip(
                                                 label = sug,
                                                 selected = false,
@@ -2109,6 +2208,39 @@ fun CompassARScreen(
                                         )
                                     }
                                 }
+
+                                ChromeDivider()
+
+                                Text(
+                                    text = if (isFa) "گروه‌های ماهواره" else "Satellite groups",
+                                    style = RedTypographyTokens.badge,
+                                    color = RedTheme.colors.textSecondary
+                                )
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth().testTag("ar_satellite_family_filters")
+                                ) {
+                                    items(ArSatelliteFamily.entries) { family ->
+                                        ChromeToggleChip(
+                                            label = if (isFa) family.labelFa else family.labelEn,
+                                            selected = family in arSatelliteFamilies,
+                                            onClick = { toggleSatelliteFamily(family) }
+                                        )
+                                    }
+                                }
+
+                                ChromeDivider()
+
+                                ChromeToggleChip(
+                                    label = if (isFa) "منظره آسمان (دوربین خاموش)" else "Sky landscape (camera off)",
+                                    selected = showArLandscape,
+                                    icon = Icons.Default.Landscape,
+                                    onClick = {
+                                        showArLandscape = !showArLandscape
+                                        prefs.edit().putBoolean("ar_landscape", showArLandscape).apply()
+                                    },
+                                    modifier = Modifier.testTag("ar_landscape_toggle")
+                                )
                             }
                         }
 
