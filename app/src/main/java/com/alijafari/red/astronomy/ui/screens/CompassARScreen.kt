@@ -120,7 +120,6 @@ import com.alijafari.red.astronomy.ui.screens.ar.ArSatelliteInfo
 import com.alijafari.red.astronomy.ui.screens.ar.ArScreenSupport
 import com.alijafari.red.astronomy.ui.screens.ar.ArSkyOverlay
 import com.alijafari.red.astronomy.ui.screens.ar.SimulatedSkyFallback
-import com.alijafari.red.astronomy.ui.screens.ar.arMoonIlluminationPercent
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
