@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 /**
@@ -14,5 +15,6 @@ import androidx.compose.ui.Modifier
  * to the real status bar height wherever the bar is shown, which is exactly what top-of-screen
  * chrome (close buttons, titles, the Home search card, …) must clear.
  */
+@Composable
 fun Modifier.statusBarsAndCutoutPadding(): Modifier =
     windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
