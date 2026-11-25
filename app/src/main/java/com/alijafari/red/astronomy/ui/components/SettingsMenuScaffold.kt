@@ -183,13 +183,15 @@ fun SettingsExpandableRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RedShapes.capsule)
-            .background(skin.groupBg)
             .testTag(testTag)
     ) {
+        // The capsule belongs to the button only. Clipping the whole column with it would turn a
+        // tall expanded row into an almost-circle (50% of the *height*) and cut off option text.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RedShapes.capsule)
+                .background(skin.groupBg)
                 .clickable(onClick = onToggle)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,

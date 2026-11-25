@@ -118,7 +118,6 @@ import com.alijafari.red.astronomy.ui.screens.ar.ArOverlayState
 import com.alijafari.red.astronomy.ui.screens.ar.ArSatelliteFamily
 import com.alijafari.red.astronomy.ui.screens.ar.ArSatelliteInfo
 import com.alijafari.red.astronomy.ui.screens.ar.ArScreenSupport
-import com.alijafari.red.astronomy.ui.screens.ar.ArSkyLandscape
 import com.alijafari.red.astronomy.ui.screens.ar.ArSkyOverlay
 import com.alijafari.red.astronomy.ui.screens.ar.SimulatedSkyFallback
 import com.alijafari.red.astronomy.ui.screens.ar.arMoonIlluminationPercent
@@ -1110,7 +1109,6 @@ fun CompassARScreen(
                 ?: ArSatelliteFamily.ALL
         )
     }
-    var showArLandscape by remember { mutableStateOf(prefs.getBoolean("ar_landscape", true)) }
 
     fun updateFilter(key: String, value: Boolean, setter: (Boolean) -> Unit) {
         setter(value)
@@ -1287,20 +1285,6 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 0.5: the sky canvas's ground band, seated on the camera model's true horizon. It is
-        // painted only over the simulated sky; a live camera already shows the real landscape. The
-        // overlay draws above it and hides below-horizon objects so nothing floats over the ground.
-        if (showSimulatedSky && showArLandscape && !isAlignmentMode) {
-            ArSkyLandscape(
-                cameraModel = composeCameraModel,
-                theme = uiState.skyCanvasTheme,
-                sunAltDeg = Math.toDegrees(skyLighting?.sunElevRad ?: 0.0),
-                moonAltDeg = Math.toDegrees(skyLighting?.moonElevRad ?: 0.0),
-                moonIlluminationPercent = arMoonIlluminationPercent(skySnapshot?.moon?.glyph?.phaseAngleDeg),
-                modifier = Modifier.fillMaxSize().testTag("ar_sky_landscape")
-            )
-        }
-
         // Layer 1: Live Camera Feed (removed after a bind failure so the simulated sky shows instead of
         // a black preview; switching the camera off and on retries).
         if (hasCameraPermission && isCameraEnabled && !cameraBindFailed) {
@@ -1450,7 +1434,6 @@ fun CompassARScreen(
                         satelliteFamilies = arSatelliteFamilies,
                         showMeteors = filterMeteorShowers,
                         showNames = filterObjectNames,
-                        hideBelowHorizon = showSimulatedSky && showArLandscape,
                         isFa = isFa,
                         timeMs = System.currentTimeMillis(),
                         selectedId = selectedTarget?.id,
@@ -2229,18 +2212,6 @@ fun CompassARScreen(
                                     }
                                 }
 
-                                ChromeDivider()
-
-                                ChromeToggleChip(
-                                    label = if (isFa) "منظره آسمان (دوربین خاموش)" else "Sky landscape (camera off)",
-                                    selected = showArLandscape,
-                                    icon = Icons.Default.Landscape,
-                                    onClick = {
-                                        showArLandscape = !showArLandscape
-                                        prefs.edit().putBoolean("ar_landscape", showArLandscape).apply()
-                                    },
-                                    modifier = Modifier.testTag("ar_landscape_toggle")
-                                )
                             }
                         }
 

@@ -74,8 +74,6 @@ class ArOverlayOptions(
     val satelliteFamilies: Set<ArSatelliteFamily> = ArSatelliteFamily.ALL,
     val showMeteors: Boolean,
     val showNames: Boolean,
-    /** True when the simulated-sky landscape is painted: nothing under the horizon is visible. */
-    val hideBelowHorizon: Boolean = false,
     val isFa: Boolean,
     val timeMs: Long,
     val selectedId: String?,
@@ -271,7 +269,7 @@ object ArSkyOverlay {
             val x = e[i * 3].toDouble(); val y = e[i * 3 + 1].toDouble(); val z = e[i * 3 + 2].toDouble()
             if (x * bore[0] + y * bore[1] + z * bore[2] < cosLimit) continue
             val belowHorizon = z < -0.003
-            if (belowHorizon && (!opts.cameraMode || opts.hideBelowHorizon)) continue
+            if (belowHorizon && !opts.cameraMode) continue
             val m = snapshot.starMag[i].toDouble()
             if (m > 50.0) continue
             // Occulted by the Moon's disc.
@@ -328,7 +326,7 @@ object ArSkyOverlay {
                 val pl = snapshot.placementOf(obj.id) ?: continue
                 x = pl.enu[0]; y = pl.enu[1]; z = pl.enu[2]
             }
-            if ((!opts.cameraMode || opts.hideBelowHorizon) && z < -0.003) continue
+            if (!opts.cameraMode && z < -0.003) continue
             if (!camera.project(x, y, z, state.p)) continue
             if (state.p[0] < -40 || state.p[0] > w + 40 || state.p[1] < -40 || state.p[1] > h + 40) continue
             val alt = ArSkyFrame.altitudeDeg(doubleArrayOf(x, y, z))
@@ -360,7 +358,6 @@ object ArSkyOverlay {
                 ArBodyKind.JOVIAN_MOON -> if (!opts.showPlanets) continue
             }
             val pl = b.placed
-            if (opts.hideBelowHorizon && pl.altDeg < -0.3) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]
             if (px < -300 || px > w + 300 || py < -300 || py > h + 300) continue
@@ -551,7 +548,7 @@ object ArSkyOverlay {
         for (obj in catalogue) {
             if (obj.type !in deepSkyTypes) continue
             val pl = snapshot.placementOf(obj.id) ?: continue
-            if ((!opts.cameraMode || opts.hideBelowHorizon) && pl.altDeg < -0.3) continue
+            if (!opts.cameraMode && pl.altDeg < -0.3) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]
             if (px < -120 || px > w + 120 || py < -120 || py > h + 120) continue
@@ -601,7 +598,7 @@ object ArSkyOverlay {
                 ?: s.dynamicCelestialObject
                 ?: continue
             val pl = snapshot.placementOf(s.id) ?: continue
-            if ((opts.hideBelowHorizon || !opts.cameraMode) && pl.altDeg < -0.5) continue
+            if (pl.altDeg < -0.5 && !opts.cameraMode) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]
             if (px < -80 || px > w + 80 || py < -80 || py > h + 80) continue
@@ -675,7 +672,6 @@ object ArSkyOverlay {
             if (obj.type != ObjectType.METEOR_SHOWER) continue
             if (!ArScreenSupport.isShowerActive(obj, snapshot.timeMs)) continue
             val pl = snapshot.placementOf(obj.id) ?: continue
-            if (opts.hideBelowHorizon && pl.altDeg < -0.5) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]
             if (px < -40 || px > w + 40 || py < -40 || py > h + 40) continue
@@ -725,7 +721,7 @@ object ArSkyOverlay {
                 if (i * 3 + 2 >= labels.size) break
                 if (c.rank > 2 && opts.zoom < 1.6) continue
                 val x = labels[i * 3].toDouble(); val y = labels[i * 3 + 1].toDouble(); val z = labels[i * 3 + 2].toDouble()
-                if ((!opts.cameraMode || opts.hideBelowHorizon) && z < 0.02) continue
+                if (!opts.cameraMode && z < 0.02) continue
                 if (!camera.project(x, y, z, state.p)) continue
                 val px = state.p[0]; val py = state.p[1]
                 if (px < 0 || px > w || py < 0 || py > h) continue

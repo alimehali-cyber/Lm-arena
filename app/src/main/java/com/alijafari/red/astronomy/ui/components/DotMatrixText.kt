@@ -16,36 +16,40 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 
 /* ------------------------------------------------------------------ */
-/*  Dot-matrix display — the observatory score, set in a 5x7 dot matrix */
-/*  like an old observatory LED board. Persian digits in Persian mode   */
-/*  (۰-۹ with ٪), Latin digits in English mode (0-9 with %).            */
+/*  Dot-matrix display — the observatory score, set in the same 5x7 dot */
+/*  matrix face used by the Spatial and Aether UIs. Persian digits      */
+/*  in Persian mode (۰-۹ with ٪), Latin digits in English (0-9 with %). */
 /* ------------------------------------------------------------------ */
 
-/** 5x7 glyph rows; bit 4 (0b10000) is the left-most dot. */
+/**
+ * 5x7 glyph rows; bit 4 (0b10000) is the left-most dot.
+ * These are the glyphs from the shared Spatial / Aether dot-matrix faces, so the observatory
+ * readout uses the same Persian digit and percent shapes as the rest of the app.
+ */
 private val DotMatrixGlyphs: Map<Char, IntArray> = mapOf(
-    '0' to intArrayOf(0b01100, 0b10010, 0b10010, 0b10010, 0b10010, 0b10010, 0b01100),
-    '1' to intArrayOf(0b00110, 0b01110, 0b00010, 0b00010, 0b00010, 0b00010, 0b00010),
-    '2' to intArrayOf(0b01110, 0b11011, 0b00011, 0b00010, 0b00100, 0b01000, 0b11111),
-    '3' to intArrayOf(0b01110, 0b11011, 0b00011, 0b00110, 0b00011, 0b11011, 0b01110),
-    '4' to intArrayOf(0b00110, 0b00110, 0b01110, 0b01010, 0b11111, 0b11111, 0b00010),
-    '5' to intArrayOf(0b11111, 0b11000, 0b11110, 0b11011, 0b00001, 0b11011, 0b01110),
-    '6' to intArrayOf(0b00110, 0b01000, 0b11110, 0b11111, 0b10001, 0b11011, 0b01110),
-    '7' to intArrayOf(0b11111, 0b00011, 0b00010, 0b00110, 0b00100, 0b01100, 0b01100),
-    '8' to intArrayOf(0b01110, 0b11011, 0b11011, 0b01110, 0b11011, 0b11011, 0b01110),
-    '9' to intArrayOf(0b01110, 0b11011, 0b10001, 0b11011, 0b01111, 0b00010, 0b01110),
-    '%' to intArrayOf(0b11000, 0b10110, 0b11100, 0b00111, 0b01101, 0b00011, 0b00000),
-    // Persian digits — silhouettes hand-set in Eastern Arabic-Indic forms (۰-۹)
-    '۰' to intArrayOf(0b00000, 0b00000, 0b01110, 0b10001, 0b01110, 0b00000, 0b00000),
-    '۱' to intArrayOf(0b10010, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100),
-    '۲' to intArrayOf(0b11000, 0b10100, 0b00110, 0b00010, 0b00100, 0b01000, 0b01110),
-    '۳' to intArrayOf(0b00000, 0b10001, 0b11011, 0b01110, 0b00100, 0b00000, 0b00000),
-    '۴' to intArrayOf(0b10111, 0b11100, 0b01111, 0b01010, 0b01000, 0b01000, 0b00000),
-    '۵' to intArrayOf(0b00100, 0b01010, 0b10001, 0b11011, 0b01110, 0b00000, 0b00000),
-    '۶' to intArrayOf(0b01110, 0b10000, 0b10000, 0b01100, 0b00010, 0b00010, 0b00000),
-    '۷' to intArrayOf(0b10001, 0b10001, 0b01010, 0b01110, 0b00100, 0b00100, 0b00000),
-    '۸' to intArrayOf(0b00100, 0b01010, 0b10001, 0b11011, 0b10001, 0b00000, 0b00000),
-    '۹' to intArrayOf(0b01110, 0b10001, 0b11011, 0b01111, 0b00010, 0b00010, 0b00010),
-    '٪' to intArrayOf(0b11000, 0b11000, 0b01100, 0b00100, 0b00011, 0b00011, 0b00000),
+    '0' to intArrayOf(0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E),
+    '1' to intArrayOf(0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E),
+    '2' to intArrayOf(0x0E, 0x11, 0x01, 0x06, 0x08, 0x10, 0x1F),
+    '3' to intArrayOf(0x1F, 0x02, 0x04, 0x06, 0x01, 0x11, 0x0E),
+    '4' to intArrayOf(0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02),
+    '5' to intArrayOf(0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E),
+    '6' to intArrayOf(0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E),
+    '7' to intArrayOf(0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08),
+    '8' to intArrayOf(0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E),
+    '9' to intArrayOf(0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C),
+    '%' to intArrayOf(0x19, 0x19, 0x02, 0x04, 0x08, 0x13, 0x13),
+    // Persian digits — the current Spatial / Aether Eastern Arabic-Indic face (۰-۹)
+    '۰' to intArrayOf(0x00, 0x04, 0x0A, 0x11, 0x0A, 0x04, 0x00),
+    '۱' to intArrayOf(0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x04),
+    '۲' to intArrayOf(0x11, 0x11, 0x1F, 0x10, 0x10, 0x10, 0x10),
+    '۳' to intArrayOf(0x15, 0x15, 0x1F, 0x10, 0x10, 0x10, 0x10),
+    '۴' to intArrayOf(0x07, 0x14, 0x1F, 0x10, 0x10, 0x10, 0x10),
+    '۵' to intArrayOf(0x04, 0x0A, 0x11, 0x11, 0x15, 0x15, 0x0A),
+    '۶' to intArrayOf(0x06, 0x08, 0x07, 0x04, 0x08, 0x10, 0x10),
+    '۷' to intArrayOf(0x11, 0x11, 0x0A, 0x0A, 0x04, 0x04, 0x04),
+    '۸' to intArrayOf(0x04, 0x04, 0x0A, 0x0A, 0x11, 0x11, 0x11),
+    '۹' to intArrayOf(0x0E, 0x11, 0x11, 0x0F, 0x01, 0x01, 0x01),
+    '٪' to intArrayOf(0x19, 0x19, 0x02, 0x04, 0x08, 0x13, 0x13),
 )
 
 private const val GLYPH_COLS = 5
