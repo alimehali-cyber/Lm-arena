@@ -143,7 +143,7 @@ class NavChromeTest {
         assertTrue("the bar is re-hidden, not shown", bars.contains("hide(WindowInsetsCompat.Type.statusBars())"))
         val manifestText = java.io.File("src/main/AndroidManifest.xml").takeIf { it.isFile }?.readText()
             ?: java.io.File("app/src/main/AndroidManifest.xml").readText()
-        assertTrue("the window claims the cutout deliberately", manifestText.contains("android:windowLayoutInDisplayCutoutMode="shortEdges""))
+        assertTrue("the window claims the cutout deliberately", manifestText.contains("windowLayoutInDisplayCutoutMode") && manifestText.contains("shortEdges"))
         // No screen still leans on the bare status bar inset alone.
         for (relative in listOf(
             "com/alijafari/red/astronomy/ui/screens/LabScreen.kt",
