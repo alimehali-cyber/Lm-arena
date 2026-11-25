@@ -119,6 +119,9 @@ class OrientationProvider(
     private var smoothY = 0.0
     private var smoothZ = 0.0
     private var smoothInit = false
+    private val attitudeHistory = com.alijafari.red.astronomy.ar.core.AttitudeHistory()
+
+    fun attitudeAt(timeNanos: Long, out: DoubleArray? = null): DoubleArray? = attitudeHistory.at(timeNanos, out)
 
     private val trueMatrix = DoubleArray(9)
     private val alignedMatrix = DoubleArray(9)
@@ -305,6 +308,7 @@ class OrientationProvider(
         }
 
         val finalMatrix = smooth(alignedMatrix)
+        attitudeHistory.push(SystemClock.elapsedRealtimeNanos(), smoothW, smoothX, smoothY, smoothZ)
 
         // Boresight of the rear camera (−Z_device) in ENU.
         val px = -finalMatrix[2]

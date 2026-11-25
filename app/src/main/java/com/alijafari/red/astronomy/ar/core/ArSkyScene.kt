@@ -62,7 +62,9 @@ class ArSkySnapshot(
     /** 3 floats per constellation: ENU of its label anchor (unrefracted; labels only). */
     val constellationLabelEnu: FloatArray,
     val sun: ArBodyState,
-    val moon: ArBodyState
+    val moon: ArBodyState,
+    val satGeoEnu: Map<String, DoubleArray> = emptyMap(),
+    val satPrev10sEnu: Map<String, DoubleArray> = emptyMap()
 ) {
     /** Number of stars with positions in this snapshot. */
     val starCount: Int get() = stars?.size ?: 0
@@ -300,6 +302,31 @@ object ArSkySceneComputer {
         V3.normalizeInPlace(v)
         frame.refractInPlace(v)
         return ArPlaced(v, ArSkyFrame.altitudeDeg(v), ArSkyFrame.azimuthDeg(v))
+    }
+
+    /**
+     * Pure linear extrapolation of a satellite's geometric ENU unit vector over [dtMs]
+     * (clamped to [0, 2500] ms) using the velocity (u_now - u_minus10s) / 10 s.
+     * Returns null if [uMinus10s] is null.
+     */
+    fun extrapolateSatelliteEnu(
+        uNow: DoubleArray,
+        uMinus10s: DoubleArray?,
+        dtMs: Long
+    ): DoubleArray? {
+        if (uMinus10s == null) return null
+        val clampedDtSec = dtMs.coerceIn(0L, 2500L) / 1000.0
+        if (clampedDtSec == 0.0) return uNow.copyOf()
+        val vx = (uNow[0] - uMinus10s[0]) / 10.0
+        val vy = (uNow[1] - uMinus10s[1]) / 10.0
+        val vz = (uNow[2] - uMinus10s[2]) / 10.0
+        val out = doubleArrayOf(
+            uNow[0] + vx * clampedDtSec,
+            uNow[1] + vy * clampedDtSec,
+            uNow[2] + vz * clampedDtSec
+        )
+        V3.normalizeInPlace(out)
+        return out
     }
 
     private fun topocentricTod(frame: ArSkyFrame, geoUnit: DoubleArray, distAu: Double): DoubleArray {

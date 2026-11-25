@@ -162,4 +162,42 @@ class HeadingFusionTest {
         // Without a magnetic reference the absolute heading is unknown until a star alignment.
         assertTrue(fusion.diagnostics().headingSigmaDeg.isNaN())
     }
+
+    @Test
+    fun `declination sign is true = magnetic + declination for both east and west in FUSED and ROTATION_VECTOR`() {
+        for (declDeg in listOf(15.0, -10.0)) {
+            val customField = Wmm2025.Field(
+                x = field.h * cos(Math.toRadians(declDeg)),
+                y = field.h * sin(Math.toRadians(declDeg)),
+                z = field.z,
+                h = field.h,
+                f = field.f,
+                inclinationDeg = field.inclinationDeg,
+                declinationDeg = declDeg,
+                declinationUncertaintyDeg = 0.5
+            )
+            val truth = attitude(140.0, 25.0)
+            // FUSED mode
+            run {
+                val fusion = HeadingFusion().apply { setExpectedField(customField) }
+                val sim = Sim(fusion)
+                val game = quat(yawed(truth, -30.0))
+                val bEnu = doubleArrayOf(customField.y / 1000.0, customField.x / 1000.0, -customField.z / 1000.0)
+                repeat(50 * 8) { sim.step(game, reading(truth, bEnu, 0.3)) }
+                val err = headingErrorDeg(fusion, truth)
+                assertEquals(HeadingFusion.Mode.FUSED, fusion.currentMode())
+                assertTrue("FUSED decl=$declDeg err=$err", err < 0.5)
+            }
+            // ROTATION_VECTOR fallback: magnetic heading = true heading - declination
+            run {
+                val fusion = HeadingFusion().apply { setExpectedField(customField) }
+                val magnetic = yawed(truth, declDeg)
+                val q = quat(magnetic)
+                fusion.onRotationVector(q[0], q[1], q[2], q[3], Math.toRadians(3.0))
+                assertEquals(HeadingFusion.Mode.ROTATION_VECTOR, fusion.currentMode())
+                val err = headingErrorDeg(fusion, truth)
+                assertTrue("ROTATION_VECTOR decl=$declDeg err=$err", err < 1e-6)
+            }
+        }
+    }
 }

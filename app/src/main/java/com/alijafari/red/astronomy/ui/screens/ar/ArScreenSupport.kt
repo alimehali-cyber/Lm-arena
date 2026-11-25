@@ -165,7 +165,7 @@ object ArScreenSupport {
                         if (!seenNorads.add(pearl.noradId)) return@forEachIndexed
                         val now = SatelliteEngine.calculateSatelliteState(pearl, timeMs, lat, lon, heightM, pearl.defaultTle)
                         val trail = listOf(10_000L, 20_000L).map { dt ->
-                            val topo = ISSEngine.calculateTopocentricPos(timeMs - dt, lat, lon, heightM, pearl.defaultTle)
+                            val topo = SatelliteEngine.calculateSatelliteState(pearl, timeMs - dt, lat, lon, heightM, pearl.defaultTle).topocentric
                             topo.azimuthDeg to topo.elevationDeg
                         }
                         val isLeader = idx == 0
@@ -202,7 +202,7 @@ object ArScreenSupport {
                     if (!seenNorads.add(sat.noradId)) continue
                     val now = SatelliteEngine.calculateSatelliteState(sat, timeMs, lat, lon, heightM, sat.defaultTle)
                     val trail = listOf(10_000L, 20_000L).map { dt ->
-                        val topo = ISSEngine.calculateTopocentricPos(timeMs - dt, lat, lon, heightM, sat.defaultTle)
+                        val topo = SatelliteEngine.calculateSatelliteState(sat, timeMs - dt, lat, lon, heightM, sat.defaultTle).topocentric
                         topo.azimuthDeg to topo.elevationDeg
                     }
                     out.add(

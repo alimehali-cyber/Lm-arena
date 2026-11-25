@@ -1038,6 +1038,13 @@ fun CompassARScreen(
 
     // Camera model of the current frame (exact CameraX/Camera2 pipeline, or the virtual camera).
     fun currentAttitude(): DoubleArray {
+        if (cameraLive && isSensorActive) {
+            val delayed = orientationProvider.attitudeAt(
+                android.os.SystemClock.elapsedRealtimeNanos() -
+                    com.alijafari.red.astronomy.ar.core.AttitudeHistory.CAMERA_PREVIEW_LATENCY_MS * 1_000_000L
+            )
+            if (delayed != null) return delayed
+        }
         val m = skyOrientation.rotationMatrix
         return if (isSensorActive && ArScreenSupport.isValidRotation(m)) ArScreenSupport.toDouble(m)
         else ArScreenSupport.manualAttitude(manualAzimuthOffset, manualPitchOffset)
