@@ -66,7 +66,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.alijafari.red.astronomy.ui.theme.statusBarsAndCutoutPadding
 
 private const val MINUTE = 60_000L
 private const val DAY = 24 * 60 * MINUTE
@@ -739,7 +738,9 @@ internal fun SatelliteHud(
             SatelliteStarfield(tokens)
             globe(framing, top, bottom)
 
-            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsAndCutoutPadding().padding(start = padding, end = padding, top = 8.dp),
+            // The satellites HUD keeps the design's original absolute top positions; pushing this
+            // row down for the cutout made it collide with the observer/filters row beneath it.
+            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(start = padding, end = padding, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 SatStatusPill(status, tokens, { onPanel(SatPanel.DataStatus) }, onLive)
                 Spacer(Modifier.weight(1f))

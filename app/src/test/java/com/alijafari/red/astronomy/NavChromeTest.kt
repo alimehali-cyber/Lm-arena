@@ -151,7 +151,6 @@ class NavChromeTest {
             "com/alijafari/red/astronomy/ui/screens/CompassARScreen.kt",
             "com/alijafari/red/astronomy/ui/aether/AetherHomeScreen.kt",
             "com/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen.kt",
-            "com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt",
             "com/alijafari/red/astronomy/ui/monuments/MonumentScreen.kt",
             "com/alijafari/red/astronomy/ui/components/EclipseWindow.kt",
             "com/alijafari/red/astronomy/ui/components/MoonDetailWindow.kt",

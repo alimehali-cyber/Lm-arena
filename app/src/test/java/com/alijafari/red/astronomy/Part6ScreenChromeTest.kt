@@ -65,7 +65,10 @@ class Part6ScreenChromeTest {
         assertTrue("the Lab list starts below the clock", lab.contains(".statusBarsAndCutoutPadding()"))
 
         val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
-        assertTrue("so does the satellite index", stage.contains(".statusBarsAndCutoutPadding()"))
+        // The satellites HUD keeps its original absolute top positions — pushing the buttons down
+        // for the cutout collided with the observer/filters row beneath it.
+        assertTrue("the satellites HUD buttons keep their previous positions", stage.contains(".fillMaxWidth().padding(start = padding, end = padding, top = 8.dp)"))
+        assertFalse("the satellites HUD no longer leans on the cutout inset", stage.contains("statusBarsAndCutoutPadding()"))
     }
 
     @Test
