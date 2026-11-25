@@ -166,15 +166,10 @@ class HeadingFusionTest {
     @Test
     fun `declination sign is true = magnetic + declination for both east and west in FUSED and ROTATION_VECTOR`() {
         for (declDeg in listOf(15.0, -10.0)) {
-            val customField = Wmm2025.Field(
+            val customField = field.copy(
                 x = field.h * cos(Math.toRadians(declDeg)),
                 y = field.h * sin(Math.toRadians(declDeg)),
-                z = field.z,
-                h = field.h,
-                f = field.f,
-                inclinationDeg = field.inclinationDeg,
-                declinationDeg = declDeg,
-                declinationUncertaintyDeg = 0.5
+                declinationDeg = declDeg
             )
             val truth = attitude(140.0, 25.0)
             // FUSED mode
