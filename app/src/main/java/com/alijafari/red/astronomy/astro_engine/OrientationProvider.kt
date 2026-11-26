@@ -123,6 +123,11 @@ class OrientationProvider(
 
     fun attitudeAt(timeNanos: Long, out: DoubleArray? = null): DoubleArray? = attitudeHistory.at(timeNanos, out)
 
+    fun meanAndDriftCheck(nowNanos: Long): com.alijafari.red.astronomy.ar.core.AttitudeHistory.WindowResult =
+        attitudeHistory.meanAndDriftCheck(nowNanos)
+
+    fun currentYawDeltaDeg(): Double = fusion.currentYawDeltaDeg()
+
     private val trueMatrix = DoubleArray(9)
     private val alignedMatrix = DoubleArray(9)
     private val yawMatrix = FloatArray(9)

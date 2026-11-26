@@ -228,7 +228,8 @@ object ARCalibrationManager {
         currentLatitude: Double? = null,
         currentLongitude: Double? = null,
         maxAgeDays: Long = 14L,
-        maxDistanceKm: Double = 50.0
+        maxDistanceKm: Double = 50.0,
+        currentFusionDeltaDeg: Double? = null
     ): RecalibrationPromptDecision {
         val hasCalibrationRecord = offsets.lastCalibratedTimeMs > 0L ||
                 offsets.yawOffsetDeg != 0f ||
@@ -256,7 +257,9 @@ object ARCalibrationManager {
             null
         }
         val isLocationStale = distanceKm != null && distanceKm > maxDistanceKm
-        val isDeltaStale = false
+        val isDeltaStale = currentFusionDeltaDeg != null &&
+            offsets.fusionDeltaDeg != null &&
+            kotlin.math.abs(normalizeAngle180(currentFusionDeltaDeg - offsets.fusionDeltaDeg)) > 8.0
         return RecalibrationPromptDecision(
             shouldPrompt = isTimeStale || isLocationStale || isDeltaStale,
             isTimeStale = isTimeStale,

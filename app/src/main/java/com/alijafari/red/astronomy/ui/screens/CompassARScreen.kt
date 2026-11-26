@@ -795,12 +795,20 @@ fun CompassARScreen(
 
     fun placementOf(obj: CelestialObject): ArPlaced? {
         val snap = skySnapshot ?: return null
+        val isLive = timeMachineState.mode == TimeMachineMode.LIVE
+        if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) {
+            val satId = snap.placementOf(obj.id)?.let { obj.id }
+                ?: arSatellites.firstOrNull { s -> ArScreenSupport.satelliteIdsFor(s).contains(obj.id) }?.id
+            if (satId != null) {
+                return if (isLive) {
+                    ArSkySceneComputer.extrapolateSatellitePlaced(snap, satId, System.currentTimeMillis())
+                } else {
+                    snap.placementOf(satId)
+                }
+            }
+        }
         snap.placementOf(obj.id)?.let { return it }
         snap.placementOf(com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id))?.let { return it }
-        if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) {
-            val sat = arSatellites.firstOrNull { s -> ArScreenSupport.satelliteIdsFor(s).contains(obj.id) }
-            if (sat != null) return snap.placementOf(sat.id)
-        }
         return null
     }
 
@@ -2828,23 +2836,50 @@ fun CompassARScreen(
                     if (target != null) {
                         triggerAlignmentHaptic()
                         val placed = skySnapshot?.placementOf(target.id)
-                        // currentAzimuth is the displayed (already corrected) heading, so the manager
-                        // accumulates the residual onto the active offset.
-                        val applied = ARCalibrationManager.applyOnePointAlignment(
-                            targetAzimuthDeg = placed?.azDeg ?: target.azimuthDeg,
-                            currentAzimuthDeg = currentAzimuth,
-                            referenceName = if (isFa) target.nameFa else target.nameEn,
-                            context = context,
-                            latitude = observerLat,
-                            longitude = observerLon
-                        )
-                        if (applied.isNaN()) {
-                            // Total correction would exceed the plausible compass error: not applied.
+                        val targetAz = placed?.azDeg ?: target.azimuthDeg
+                        val targetAlt = placed?.altDeg ?: target.altitudeDeg
+                        val driftCheck = if (isSensorActive) {
+                            orientationProvider.meanAndDriftCheck(android.os.SystemClock.elapsedRealtimeNanos())
+                        } else null
+                        if (driftCheck is com.alijafari.red.astronomy.ar.core.AttitudeHistory.WindowResult.RejectedDrift) {
                             alignmentRejected = true
                             alignmentConfirmationDeg = null
                         } else {
-                            alignmentConfirmationDeg = applied
-                            isAlignmentMode = false
+                            val capturedMatrix = (driftCheck as? com.alijafari.red.astronomy.ar.core.AttitudeHistory.WindowResult.Ok)?.matrix
+                            val aimedAz = if (capturedMatrix != null && arViewportSize.width > 0 && arViewportSize.height > 0) {
+                                val cam = buildCameraModel(arViewportSize.width.toFloat(), arViewportSize.height.toFloat())
+                                cam.setAttitude(capturedMatrix)
+                                val rayEnu = DoubleArray(3)
+                                if (cam.unproject(arViewportSize.width / 2f, arViewportSize.height / 2f, rayEnu)) {
+                                    val rayAlt = com.alijafari.red.astronomy.ar.core.ArSkyFrame.altitudeDeg(rayEnu)
+                                    if (kotlin.math.abs(rayAlt) > 80.0 || kotlin.math.abs(targetAlt) > 80.0) {
+                                        Double.NaN
+                                    } else {
+                                        com.alijafari.red.astronomy.ar.core.ArSkyFrame.azimuthDeg(rayEnu)
+                                    }
+                                } else currentAzimuth
+                            } else currentAzimuth
+                            if (aimedAz.isNaN()) {
+                                alignmentRejected = true
+                                alignmentConfirmationDeg = null
+                            } else {
+                                val applied = ARCalibrationManager.applyOnePointAlignment(
+                                    targetAzimuthDeg = targetAz,
+                                    currentAzimuthDeg = aimedAz,
+                                    referenceName = if (isFa) target.nameFa else target.nameEn,
+                                    context = context,
+                                    latitude = observerLat,
+                                    longitude = observerLon,
+                                    fusionDeltaDeg = if (isSensorActive) orientationProvider.currentYawDeltaDeg() else null
+                                )
+                                if (applied.isNaN()) {
+                                    alignmentRejected = true
+                                    alignmentConfirmationDeg = null
+                                } else {
+                                    alignmentConfirmationDeg = applied
+                                    isAlignmentMode = false
+                                }
+                            }
                         }
                     }
                 },
