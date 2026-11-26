@@ -45,7 +45,8 @@ data class ARCalibrationOffsets(
      * the offset value: an alignment that confirms the compass exactly (offset 0.0°) is still an
      * alignment, and a non-zero offset is no longer used as a proxy for "aligned".
      */
-    val alignmentActive: Boolean = false
+    val alignmentActive: Boolean = false,
+    val fusionDeltaDeg: Double? = null
 ) {
     val isCalibrated: Boolean
         get() = alignmentActive
@@ -103,6 +104,7 @@ object ARCalibrationManager {
     private const val KEY_LAST_LOCATION_LAT = "calib_last_location_lat"
     private const val KEY_LAST_LOCATION_LON = "calib_last_location_lon"
     private const val KEY_ALIGNMENT_ACTIVE = "calib_alignment_active"
+    private const val KEY_FUSION_DELTA_DEG = "calib_fusion_delta_deg"
 
     /**
      * Largest total yaw correction a 1-point alignment may establish. Phone compasses that are off by
@@ -151,13 +153,15 @@ object ARCalibrationManager {
             val lon = if (prefs.contains(KEY_LAST_LOCATION_LON)) prefs.getFloat(KEY_LAST_LOCATION_LON, Float.NaN).toDouble() else null
             // Older builds had no explicit flag: a stored non-zero offset meant "aligned".
             val active = if (prefs.contains(KEY_ALIGNMENT_ACTIVE)) prefs.getBoolean(KEY_ALIGNMENT_ACTIVE, false) else yaw != 0f
+            val fusionDelta = if (prefs.contains(KEY_FUSION_DELTA_DEG)) prefs.getFloat(KEY_FUSION_DELTA_DEG, Float.NaN).toDouble().takeIf { it.isFinite() } else null
             _calibrationFlow.value = ARCalibrationOffsets(
                 yawOffsetDeg = if (active) yaw else 0f,
                 lastCalibratedTimeMs = time,
                 referenceStarName = star,
                 lastLocationLat = lat?.takeIf { it.isFinite() },
                 lastLocationLon = lon?.takeIf { it.isFinite() },
-                alignmentActive = active
+                alignmentActive = active,
+                fusionDeltaDeg = fusionDelta
             )
             _autoPromptEnabledFlow.value = autoPrompt
             // One-way migration: drop retired pitch/roll keys if present.
@@ -252,8 +256,9 @@ object ARCalibrationManager {
             null
         }
         val isLocationStale = distanceKm != null && distanceKm > maxDistanceKm
+        val isDeltaStale = false
         return RecalibrationPromptDecision(
-            shouldPrompt = isTimeStale || isLocationStale,
+            shouldPrompt = isTimeStale || isLocationStale || isDeltaStale,
             isTimeStale = isTimeStale,
             isLocationStale = isLocationStale,
             ageDays = ageDays,
@@ -315,7 +320,8 @@ object ARCalibrationManager {
         referenceName: String = "",
         context: Context? = null,
         latitude: Double? = null,
-        longitude: Double? = null
+        longitude: Double? = null,
+        fusionDeltaDeg: Double? = null
     ): Float {
         val current = _calibrationFlow.value
         val residual = computeYawOffset(targetAzimuthDeg, currentAzimuthDeg)
@@ -328,7 +334,8 @@ object ARCalibrationManager {
             referenceStarName = referenceName,
             lastLocationLat = latitude,
             lastLocationLon = longitude,
-            alignmentActive = true
+            alignmentActive = true,
+            fusionDeltaDeg = fusionDeltaDeg
         )
         _calibrationFlow.value = updated
 
@@ -340,6 +347,11 @@ object ARCalibrationManager {
             putBoolean(KEY_ALIGNMENT_ACTIVE, true)
             updated.lastLocationLat?.let { putFloat(KEY_LAST_LOCATION_LAT, it.toFloat()) }
             updated.lastLocationLon?.let { putFloat(KEY_LAST_LOCATION_LON, it.toFloat()) }
+            if (fusionDeltaDeg != null && fusionDeltaDeg.isFinite()) {
+                putFloat(KEY_FUSION_DELTA_DEG, fusionDeltaDeg.toFloat())
+            } else {
+                remove(KEY_FUSION_DELTA_DEG)
+            }
             apply()
         }
         return updated.yawOffsetDeg

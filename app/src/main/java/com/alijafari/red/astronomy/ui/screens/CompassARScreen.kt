@@ -767,11 +767,15 @@ fun CompassARScreen(
                     val obs = inputs.observer
                     val sats = ArScreenSupport.satellites(inputs.timeMs, obs.latitudeDeg, obs.longitudeDeg, obs.heightM, inputs.focusedSatelliteId)
                     val satMap = HashMap<String, Pair<Double, Double>>()
-                    sats.forEach { s -> satMap[s.id] = s.azimuthDeg to s.altitudeDeg }
+                    val satPrev10sMap = HashMap<String, Pair<Double, Double>>()
+                    sats.forEach { s ->
+                        satMap[s.id] = s.azimuthDeg to s.altitudeDeg
+                        s.trail.firstOrNull()?.let { satPrev10sMap[s.id] = it }
+                    }
                     val builder = ArAssets.lightingBuilder()
                     synchronized(builder) {
                         val snap = ArSkySceneComputer.compute(
-                            inputs.timeMs, obs, inputs.stars, inputs.figures, staticTargets, satMap, builder.atmosphereModel
+                            inputs.timeMs, obs, inputs.stars, inputs.figures, staticTargets, satMap, builder.atmosphereModel, satPrev10sMap
                         )
                         val light = builder.build(
                             snap.sun.placed.enu, snap.moon.placed.enu,
@@ -888,11 +892,12 @@ fun CompassARScreen(
             ?: alignmentTargets.firstOrNull()
     }
     var alignmentArrowsVisible by remember { mutableStateOf(false) }
-    val alignmentGuidance = remember(selectedAlignmentTarget, currentAzimuth, currentAltitude, alignmentArrowsVisible) {
+    val alignmentGuidance = remember(selectedAlignmentTarget, skySnapshot, currentAzimuth, currentAltitude, alignmentArrowsVisible) {
         selectedAlignmentTarget?.let { target ->
+            val placed = skySnapshot?.placementOf(target.id)
             ARCalibrationManager.computeGuidance(
-                targetAzimuthDeg = target.azimuthDeg,
-                targetAltitudeDeg = target.altitudeDeg,
+                targetAzimuthDeg = placed?.azDeg ?: target.azimuthDeg,
+                targetAltitudeDeg = placed?.altDeg ?: target.altitudeDeg,
                 phoneAzimuthDeg = currentAzimuth,
                 phoneAltitudeDeg = currentAltitude,
                 arrowsCurrentlyVisible = alignmentArrowsVisible
@@ -1443,7 +1448,8 @@ fun CompassARScreen(
                         isFa = isFa,
                         timeMs = System.currentTimeMillis(),
                         selectedId = selectedTarget?.id,
-                        accent = accent
+                        accent = accent,
+                        isLiveTime = (timeMachineState.mode == TimeMachineMode.LIVE)
                     ),
                     textMeasurer = textMeasurer,
                     fontFamily = canvasFontFamily,
@@ -2821,10 +2827,11 @@ fun CompassARScreen(
                     val target = selectedAlignmentTarget
                     if (target != null) {
                         triggerAlignmentHaptic()
+                        val placed = skySnapshot?.placementOf(target.id)
                         // currentAzimuth is the displayed (already corrected) heading, so the manager
                         // accumulates the residual onto the active offset.
                         val applied = ARCalibrationManager.applyOnePointAlignment(
-                            targetAzimuthDeg = target.azimuthDeg,
+                            targetAzimuthDeg = placed?.azDeg ?: target.azimuthDeg,
                             currentAzimuthDeg = currentAzimuth,
                             referenceName = if (isFa) target.nameFa else target.nameEn,
                             context = context,

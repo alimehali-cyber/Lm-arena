@@ -295,6 +295,9 @@ class HeadingFusion {
         if (reconverging && abs(AngleUtil.wrapPi(deltaMeas - delta)) < Math.toRadians(3.0)) outlierSinceNs = 0L
     }
 
+    /** Current yaw offset δ in degrees (read-only). */
+    fun currentYawDeltaDeg(): Double = Math.toDegrees(delta)
+
     /** Smoothed angular speed of the device (degrees per second) from the game rotation vector. */
     fun angularSpeedDegPerSec(): Double = angularSpeedDegPerSec
 

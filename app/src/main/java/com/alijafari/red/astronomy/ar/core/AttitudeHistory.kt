@@ -13,6 +13,13 @@ class AttitudeHistory(private val capacity: Int = 64) {
     companion object {
         /** Field-tunable estimate of camera-preview pipeline latency (ms). */
         const val CAMERA_PREVIEW_LATENCY_MS = 60L
+        const val MAX_ALIGNMENT_DRIFT_DEG_PER_SEC = 2.0
+    }
+
+    sealed class WindowResult {
+        data class Ok(val matrix: DoubleArray) : WindowResult()
+        object RejectedDrift : WindowResult()
+        object Empty : WindowResult()
     }
 
     private val timestamps = LongArray(capacity)
@@ -94,6 +101,51 @@ class AttitudeHistory(private val capacity: Int = 64) {
         val n = sqrt(rw * rw + rx * rx + ry * ry + rz * rz)
         if (n > 1e-9) { rw /= n; rx /= n; ry /= n; rz /= n }
         return toMatrix(rw, rx, ry, rz, outMatrix)
+    }
+
+    @Synchronized
+    fun meanAndDriftCheck(
+        nowNanos: Long,
+        windowNanos: Long = 500_000_000L,
+        maxDriftDegPerSec: Double = MAX_ALIGNMENT_DRIFT_DEG_PER_SEC
+    ): WindowResult {
+        if (count == 0) return WindowResult.Empty
+        val minTs = nowNanos - windowNanos
+        val indices = ArrayList<Int>(count)
+        for (i in 0 until count) {
+            val idx = (head + i) % capacity
+            if (timestamps[idx] >= minTs) indices.add(idx)
+        }
+        if (indices.size < 4) {
+            val newestIdx = (head + count - 1) % capacity
+            return WindowResult.Ok(toMatrix(qw[newestIdx], qx[newestIdx], qy[newestIdx], qz[newestIdx], null))
+        }
+        val mid = indices.size / 2
+        val q1 = meanQuat(indices.subList(0, mid))
+        val q2 = meanQuat(indices.subList(mid, indices.size))
+        val t1 = 0.5 * (timestamps[indices[0]] + timestamps[indices[mid - 1]])
+        val t2 = 0.5 * (timestamps[indices[mid]] + timestamps[indices.last()])
+        val dtSec = (t2 - t1) / 1e9
+        if (dtSec > 1e-3) {
+            val dot = kotlin.math.abs(q1[0] * q2[0] + q1[1] * q2[1] + q1[2] * q2[2] + q1[3] * q2[3]).coerceIn(0.0, 1.0)
+            val angDeg = Math.toDegrees(2.0 * acos(dot))
+            if (angDeg / dtSec > maxDriftDegPerSec) return WindowResult.RejectedDrift
+        }
+        val qAll = meanQuat(indices)
+        return WindowResult.Ok(toMatrix(qAll[0], qAll[1], qAll[2], qAll[3], null))
+    }
+
+    private fun meanQuat(idxs: List<Int>): DoubleArray {
+        val refIdx = idxs[0]
+        val rw0 = qw[refIdx]; val rx0 = qx[refIdx]; val ry0 = qy[refIdx]; val rz0 = qz[refIdx]
+        var sw = 0.0; var sx = 0.0; var sy = 0.0; var sz = 0.0
+        for (idx in idxs) {
+            val dot = rw0 * qw[idx] + rx0 * qx[idx] + ry0 * qy[idx] + rz0 * qz[idx]
+            val s = if (dot < 0.0) -1.0 else 1.0
+            sw += s * qw[idx]; sx += s * qx[idx]; sy += s * qy[idx]; sz += s * qz[idx]
+        }
+        val n = sqrt(sw * sw + sx * sx + sy * sy + sz * sz)
+        return if (n > 1e-9) doubleArrayOf(sw / n, sx / n, sy / n, sz / n) else doubleArrayOf(1.0, 0.0, 0.0, 0.0)
     }
 
     private fun toMatrix(w: Double, x: Double, y: Double, z: Double, out: DoubleArray?): DoubleArray {

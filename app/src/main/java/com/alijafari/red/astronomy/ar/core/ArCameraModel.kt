@@ -306,6 +306,43 @@ class ArCameraModel private constructor(
     /** Camera → ENU matrix (transpose of the internal ENU → camera matrix), row-major. */
     fun cameraToEnuMatrix(out: DoubleArray = DoubleArray(9)): DoubleArray = M3.transpose(m, out)
 
+    /**
+     * Numerical inverse of [project]: maps view pixel ([px], [py]) to an ENU unit ray in [outEnu].
+     * Returns false if attitude is unset or iteration fails to converge.
+     */
+    fun unproject(px: Float, py: Float, outEnu: DoubleArray = DoubleArray(3)): Boolean {
+        if (!hasAttitude) return false
+        var xn = 0.0
+        var yn = 0.0
+        val p0 = FloatArray(2)
+        val pxDx = FloatArray(2)
+        val pxDy = FloatArray(2)
+        val h = 1e-4
+        for (iter in 0 until 12) {
+            if (!projectCamera(xn, yn, p0)) return false
+            val ex = px - p0[0]
+            val ey = py - p0[1]
+            if (ex * ex + ey * ey < 1e-8) break
+            if (!projectCamera(xn + h, yn, pxDx) || !projectCamera(xn, yn + h, pxDy)) return false
+            val j00 = (pxDx[0] - p0[0]) / h
+            val j01 = (pxDy[0] - p0[0]) / h
+            val j10 = (pxDx[1] - p0[1]) / h
+            val j11 = (pxDy[1] - p0[1]) / h
+            val det = j00 * j11 - j01 * j10
+            if (abs(det) < 1e-12) return false
+            xn += (j11 * ex - j01 * ey) / det
+            yn += (-j10 * ex + j00 * ey) / det
+        }
+        val norm = sqrt(xn * xn + yn * yn + 1.0)
+        val cx = xn / norm
+        val cy = yn / norm
+        val cz = 1.0 / norm
+        outEnu[0] = m[0] * cx + m[3] * cy + m[6] * cz
+        outEnu[1] = m[1] * cx + m[4] * cy + m[7] * cz
+        outEnu[2] = m[2] * cx + m[5] * cy + m[8] * cz
+        return true
+    }
+
     companion object {
         /** Model of the live camera preview. [sensorToViewValues] = android.graphics.Matrix values (9 floats) or null. */
         fun camera(

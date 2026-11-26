@@ -77,7 +77,8 @@ class ArOverlayOptions(
     val isFa: Boolean,
     val timeMs: Long,
     val selectedId: String?,
-    val accent: Color
+    val accent: Color,
+    val isLiveTime: Boolean = false
 )
 
 /** Reusable per-screen state: paints and the items of the last frame. */
@@ -597,7 +598,11 @@ object ArSkyOverlay {
             val obj = ArScreenSupport.satelliteIdsFor(s).firstNotNullOfOrNull { byId[it] }
                 ?: s.dynamicCelestialObject
                 ?: continue
-            val pl = snapshot.placementOf(s.id) ?: continue
+            val pl = if (opts.isLiveTime) {
+                ArSkySceneComputer.extrapolateSatellitePlaced(snapshot, s.id, System.currentTimeMillis())
+            } else {
+                snapshot.placementOf(s.id)
+            } ?: continue
             if (pl.altDeg < -0.5 && !opts.cameraMode) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
             val px = state.p[0]; val py = state.p[1]

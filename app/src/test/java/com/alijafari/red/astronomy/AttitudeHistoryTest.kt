@@ -59,4 +59,30 @@ class AttitudeHistoryTest {
         assertEquals(cos(expectedAngle), m!![0], 1e-3)
         assertEquals(sin(expectedAngle), m[3], 1e-3)
     }
+
+    @Test
+    fun `meanAndDriftCheck accepts 10 Hz tremor and rejects 5 deg per sec pan`() {
+        val h = AttitudeHistory(64)
+        var t = 1_000_000_000L
+        // 10 Hz, 0.1 deg amplitude tremor over 0.5 s
+        for (i in 0 until 25) {
+            t += 20_000_000L
+            val angle = Math.toRadians(0.1 * sin(2.0 * Math.PI * 10.0 * (i * 0.02)))
+            val q = rotZQuat(angle)
+            h.push(t, q[0], q[1], q[2], q[3])
+        }
+        val res = h.meanAndDriftCheck(t)
+        assertTrue(res is AttitudeHistory.WindowResult.Ok)
+
+        // 5 deg/s steady pan over 0.5 s -> rejected
+        val pan = AttitudeHistory(64)
+        var tp = 1_000_000_000L
+        for (i in 0 until 25) {
+            tp += 20_000_000L
+            val angle = Math.toRadians(5.0 * (i * 0.02))
+            val q = rotZQuat(angle)
+            pan.push(tp, q[0], q[1], q[2], q[3])
+        }
+        assertTrue(pan.meanAndDriftCheck(tp) is AttitudeHistory.WindowResult.RejectedDrift)
+    }
 }

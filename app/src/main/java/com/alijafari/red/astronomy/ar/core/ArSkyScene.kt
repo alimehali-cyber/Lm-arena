@@ -121,7 +121,8 @@ object ArSkySceneComputer {
         targets: List<ArStaticTarget>,
         /** id → (azimuth, altitude) geometric topocentric positions from SGP4. */
         satellites: Map<String, Pair<Double, Double>>,
-        atmosphere: SkyAtmosphere?
+        atmosphere: SkyAtmosphere?,
+        satellitePrev10s: Map<String, Pair<Double, Double>> = emptyMap()
     ): ArSkySnapshot {
         val jd = ArTimeScales.jdUtcFromEpochMillis(timeMs)
         val frame = ArSkyFrame(jd, observer)
@@ -211,9 +212,15 @@ object ArSkySceneComputer {
         }
 
         // ---- Satellites (SGP4 topocentric, geometric) ---------------------------------------------
+        val satGeoEnu = HashMap<String, DoubleArray>(satellites.size)
+        val satPrev10sEnu = HashMap<String, DoubleArray>(satellitePrev10s.size)
         for ((id, azAlt) in satellites) {
             val e = ArSkyFrame.enuFromAltAz(azAlt.second, azAlt.first)
+            satGeoEnu[id] = e
             placements[id] = placeRefracted(frame, e)
+        }
+        for ((id, azAlt) in satellitePrev10s) {
+            satPrev10sEnu[id] = ArSkyFrame.enuFromAltAz(azAlt.second, azAlt.first)
         }
 
         // ---- Constellation labels ------------------------------------------------------------------
@@ -234,7 +241,9 @@ object ArSkySceneComputer {
             constellations = constellations,
             constellationLabelEnu = labels,
             sun = sunState,
-            moon = moonState
+            moon = moonState,
+            satGeoEnu = satGeoEnu,
+            satPrev10sEnu = satPrev10sEnu
         )
     }
 
@@ -327,6 +336,19 @@ object ArSkySceneComputer {
         )
         V3.normalizeInPlace(out)
         return out
+    }
+
+    /**
+     * Extrapolates a satellite's [ArPlaced] at [nowMs] using [snapshot.satGeoEnu] and
+     * [snapshot.satPrev10sEnu], applying [placeRefracted]. Falls back to [snapshot.placementOf]
+     * when the t-10 s sample is missing.
+     */
+    fun extrapolateSatellitePlaced(snapshot: ArSkySnapshot, satId: String, nowMs: Long): ArPlaced? {
+        val uNow = snapshot.satGeoEnu[satId] ?: return snapshot.placementOf(satId)
+        val uPrev = snapshot.satPrev10sEnu[satId] ?: return snapshot.placementOf(satId)
+        val extrap = extrapolateSatelliteEnu(uNow, uPrev, nowMs - snapshot.timeMs)
+            ?: return snapshot.placementOf(satId)
+        return placeRefracted(snapshot.frame, extrap)
     }
 
     private fun topocentricTod(frame: ArSkyFrame, geoUnit: DoubleArray, distAu: Double): DoubleArray {
