@@ -2,6 +2,10 @@ name: Showcase emulator smoke test
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/showcase-smoke.yml
+      - app/src/androidTest/java/com/alijafari/red/astronomy/ShowcaseSmokeTest.kt
 
 permissions:
   contents: read
