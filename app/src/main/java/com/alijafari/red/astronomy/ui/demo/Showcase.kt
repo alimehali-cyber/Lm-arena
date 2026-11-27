@@ -19,9 +19,10 @@ import com.alijafari.red.astronomy.ui.theme.solidSurface
 /** Ephemeral presentation state, deliberately never persisted in user settings. */
 object Showcase {
     var scene by mutableStateOf(ShowcaseScene.IDLE)
+    var blackHoleReady by mutableStateOf(false)
     val active get() = scene != ShowcaseScene.IDLE
-    fun start() { if (!active) scene = ShowcaseScene.HOME }
-    fun stop() { scene = ShowcaseScene.IDLE }
+    fun start() { if (!active) { blackHoleReady = false; scene = ShowcaseScene.HOME } }
+    fun stop() { scene = ShowcaseScene.IDLE; blackHoleReady = false }
 }
 
 @Composable

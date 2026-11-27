@@ -8,11 +8,11 @@ data class ShowcaseStep(val scene: ShowcaseScene, val durationMs: Long)
 object ShowcasePlan {
     val steps = listOf(
         ShowcaseStep(ShowcaseScene.HOME, 6_000),
-        ShowcaseStep(ShowcaseScene.BLACK_HOLE, 7_000),
         ShowcaseStep(ShowcaseScene.GRAVITY, 7_000),
         ShowcaseStep(ShowcaseScene.SATELLITES, 8_000),
         ShowcaseStep(ShowcaseScene.AR, 8_000),
         ShowcaseStep(ShowcaseScene.TIME, 8_000),
+        ShowcaseStep(ShowcaseScene.BLACK_HOLE, 7_000),
         ShowcaseStep(ShowcaseScene.END, 6_000),
     )
 }

@@ -587,21 +587,20 @@ fun CompassARScreen(
     // Manual Drag Fallback when sensors paused
     var manualAzimuthOffset by remember { mutableStateOf(0.0) }
     var manualPitchOffset by remember { mutableStateOf(20.0) }
+    // Only the drawing layer reads this animation state. Updating the whole AR screen and
+    // rebuilding its controls at display rate made the previous scripted pan visibly uneven.
+    val showcaseElapsed = remember { mutableDoubleStateOf(0.0) }
     LaunchedEffect(com.alijafari.red.astronomy.ui.demo.Showcase.active) {
         if (com.alijafari.red.astronomy.ui.demo.Showcase.active) {
-            var last = 0L
+            var start = 0L
             while (true) {
                 withFrameNanos { now ->
-                    if (last != 0L) {
-                        val seconds = ((now - last) / 1_000_000_000.0).coerceIn(0.0, 0.05)
-                        manualAzimuthOffset = (manualAzimuthOffset + seconds * 4.0) % 360.0
-                    }
-                    last = now
+                    if (start == 0L) start = now
+                    showcaseElapsed.doubleValue = (now - start) / 1_000_000_000.0
                 }
             }
         }
     }
-
 
     val currentAzimuth = if (isSensorActive) skyOrientation.azimuth.toDouble() else manualAzimuthOffset
     val currentAltitude = if (isSensorActive) skyOrientation.pitch.toDouble() else manualPitchOffset
@@ -1065,7 +1064,7 @@ fun CompassARScreen(
     var nightVision by remember { mutableStateOf(arPrefs.getBoolean("ar_night_vision", false)) }
 
     // Camera model of the current frame (exact CameraX/Camera2 pipeline, or the virtual camera).
-    fun currentAttitude(): DoubleArray {
+    fun currentAttitude(showcaseMotion: Boolean = false): DoubleArray {
         if (cameraLive && isSensorActive) {
             val delayed = orientationProvider.attitudeAt(
                 android.os.SystemClock.elapsedRealtimeNanos() -
@@ -1075,10 +1074,15 @@ fun CompassARScreen(
         }
         val m = skyOrientation.rotationMatrix
         return if (isSensorActive && ArScreenSupport.isValidRotation(m)) ArScreenSupport.toDouble(m)
-        else ArScreenSupport.manualAttitude(manualAzimuthOffset, manualPitchOffset)
+        else {
+            val pose = if (showcaseMotion && com.alijafari.red.astronomy.ui.demo.Showcase.active)
+                com.alijafari.red.astronomy.ui.demo.ShowcaseMotion.sky(showcaseElapsed.doubleValue)
+            else com.alijafari.red.astronomy.ui.demo.ShowcaseMotion.SkyPose(0.0, 0.0)
+            ArScreenSupport.manualAttitude(manualAzimuthOffset + pose.azimuth, manualPitchOffset + pose.altitude)
+        }
     }
 
-    fun buildCameraModel(width: Float, height: Float): ArCameraModel {
+    fun buildCameraModel(width: Float, height: Float, showcaseMotion: Boolean = false): ArCameraModel {
         val model = if (cameraLive) {
             val values = previewViewInstance?.sensorToViewTransform?.let { mtx ->
                 FloatArray(9).also { mtx.getValues(it) }
@@ -1089,7 +1093,7 @@ fun CompassARScreen(
             val vfov = ArCameraModel.cameraVerticalFovDeg(width, height, displayRotationDegrees, cameraIntrinsics).coerceIn(45.0, 80.0)
             ArCameraModel.virtual(width, height, displayRotationDegrees, vfov, zoomFactor.toDouble().coerceIn(0.5, 12.0))
         }
-        model.setAttitude(currentAttitude())
+        model.setAttitude(currentAttitude(showcaseMotion))
         return model
     }
 
@@ -1427,7 +1431,7 @@ fun CompassARScreen(
             if (isAlignmentMode) return@Canvas
 
             val snap = skySnapshot
-            val cam = buildCameraModel(canvasWidth, canvasHeight)
+            val cam = buildCameraModel(canvasWidth, canvasHeight, showcaseMotion = true)
 
             // Feed the GL sky with exactly the same virtual camera.
             val glView = glSkyView

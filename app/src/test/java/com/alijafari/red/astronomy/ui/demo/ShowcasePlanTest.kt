@@ -9,8 +9,8 @@ class ShowcasePlanTest {
         val steps = ShowcasePlan.steps
         assertEquals(50_000L, steps.sumOf { it.durationMs })
         assertEquals(listOf(
-            ShowcaseScene.HOME, ShowcaseScene.BLACK_HOLE, ShowcaseScene.GRAVITY,
-            ShowcaseScene.SATELLITES, ShowcaseScene.AR, ShowcaseScene.TIME, ShowcaseScene.END
+            ShowcaseScene.HOME, ShowcaseScene.GRAVITY, ShowcaseScene.SATELLITES,
+            ShowcaseScene.AR, ShowcaseScene.TIME, ShowcaseScene.BLACK_HOLE, ShowcaseScene.END
         ), steps.map { it.scene })
         assertTrue(steps.all { it.durationMs > 0 })
     }

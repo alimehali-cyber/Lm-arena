@@ -102,7 +102,9 @@ fun AntarRoot(
     uiStyle: AppUiStyle = AppUiStyle.DEFAULT,
     themeMode: ThemeMode = ThemeMode.DARK,
     modifier: Modifier = Modifier,
-    showcase: Boolean = false
+    showcase: Boolean = false,
+    showcaseVisible: Boolean = true,
+    onShowcaseReady: (Boolean) -> Unit = {}
 ) {
     val isPersian = language == AppLanguage.PERSIAN
     val context = LocalContext.current
@@ -111,15 +113,15 @@ fun AntarRoot(
     val reducedMotion = remember(context) { isAnimatorReducedMotion(context) }
 
     // Register immersive mode so the floating bottom nav hides and background sky renderers sleep.
-    DisposableEffect(Unit) {
-        ImmersiveScreenState.enter()
-        onDispose { ImmersiveScreenState.exit() }
+    DisposableEffect(showcaseVisible) {
+        if (showcaseVisible) ImmersiveScreenState.enter()
+        onDispose { if (showcaseVisible) ImmersiveScreenState.exit() }
     }
 
     // Keep system status/navigation bar icons light over the dark relativistic cosmos; restore on exit.
     val activity = remember(context) { context.findHostActivity() }
-    DisposableEffect(activity) {
-        val controller = activity?.let { WindowCompat.getInsetsController(it.window, it.window.decorView) }
+    DisposableEffect(activity, showcaseVisible) {
+        val controller = if (showcaseVisible) activity?.let { WindowCompat.getInsetsController(it.window, it.window.decorView) } else null
         val prevLightStatus = controller?.isAppearanceLightStatusBars
         val prevLightNav = controller?.isAppearanceLightNavigationBars
         controller?.isAppearanceLightStatusBars = false
@@ -131,7 +133,7 @@ fun AntarRoot(
     }
 
     val appContext = context.applicationContext
-    var settings by remember { mutableStateOf(if (showcase) com.zig.antar.config.AntarSimulationSettings(cameraMode = AntarCameraMode.CINEMATIC) else AntarSettingsStore.load(appContext)) }
+    var settings by remember { mutableStateOf(if (showcase) com.zig.antar.config.AntarSimulationSettings(cameraMode = AntarCameraMode.ORBIT, distanceM = 56.0) else AntarSettingsStore.load(appContext)) }
     var telemetry by remember { mutableStateOf(AntarTelemetry()) }
     var showUi by rememberSaveable { mutableStateOf(true) }
     var panelOpen by rememberSaveable { mutableStateOf(false) }
@@ -144,7 +146,7 @@ fun AntarRoot(
     var inertiaEpoch by remember { mutableIntStateOf(0) }
 
     // System back closes the expanded sheet first, then exits the black hole screen to Lab.
-    BackHandler(enabled = true) {
+    BackHandler(enabled = showcaseVisible) {
         if (panelOpen) {
             panelOpen = false
         } else {
@@ -260,11 +262,41 @@ fun AntarRoot(
                 }
             }
 
+            // A single frame-clock camera move: zoom in while the black hole drifts across the
+            // star field and subtly rotates. The WebView is the one warmed up behind the tour.
+            LaunchedEffect(showcase, showcaseVisible) {
+                if (showcase && showcaseVisible) {
+                    var startNs = 0L
+                    while (true) {
+                        withFrameNanos { now ->
+                            if (startNs == 0L) startNs = now
+                            val progress = ((now - startNs) / 7_000_000_000.0).coerceIn(0.0, 1.0)
+                            val pose = com.alijafari.red.astronomy.ui.demo.ShowcaseMotion.blackHole(progress)
+                            engineHandle.syncCameraFast(
+                                settings = settings.copy(
+                                    cameraMode = AntarCameraMode.ORBIT,
+                                    azimuthDeg = pose.azimuth,
+                                    distanceM = pose.distance,
+                                    rollDeg = pose.roll
+                                ),
+                                panXDp = pose.panDp,
+                                panYDp = animatedDockShiftYDp.toDouble(),
+                                dockShiftDp = animatedDockShiftXDp.toDouble(),
+                                yawRad = 0.0, pitchRad = 0.0
+                            )
+                        }
+                    }
+                }
+            }
+
             // 1. Hardware-accelerated WebGL2 Kerr-Schild Ray Tracer
             AntarWebEngineView(
                 initialSettings = settings,
                 handle = engineHandle,
-                onTelemetryUpdate = { snap -> telemetry = snap },
+                onTelemetryUpdate = { snap ->
+                    telemetry = snap
+                    if (showcase) onShowcaseReady(snap.engineReady && snap.errorMessage == null)
+                },
                 modifier = Modifier.fillMaxSize()
             )
 

@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.ui.MainViewModel
@@ -244,16 +246,28 @@ class MainActivity : ComponentActivity() {
                     try {
                         viewModel.setShowcaseLanguage(AppLanguage.PERSIAN)
                         for (step in com.alijafari.red.astronomy.ui.demo.ShowcasePlan.steps) {
+                            if (step.scene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE) {
+                                // The WebGL renderer is already attached behind the tour. Give a slow
+                                // device a bounded extra chance to finish compiling before reveal.
+                                kotlinx.coroutines.withTimeoutOrNull(4_000L) {
+                                    snapshotFlow { com.alijafari.red.astronomy.ui.demo.Showcase.blackHoleReady }
+                                        .first { it }
+                                }
+                            }
                             com.alijafari.red.astronomy.ui.demo.Showcase.scene = step.scene
                             when (step.scene) {
                                 com.alijafari.red.astronomy.ui.demo.ShowcaseScene.HOME -> viewModel.selectTab(4)
-                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE,
                                 com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY -> viewModel.selectTab(0)
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE -> {
+                                    viewModel.setTimeMachinePlaying(false)
+                                    // Dispose the AR renderer as the warmed black hole fades in.
+                                    viewModel.selectTab(4)
+                                }
                                 com.alijafari.red.astronomy.ui.demo.ShowcaseScene.SATELLITES -> viewModel.selectTab(1)
                                 com.alijafari.red.astronomy.ui.demo.ShowcaseScene.AR -> viewModel.selectTab(3)
                                 com.alijafari.red.astronomy.ui.demo.ShowcaseScene.TIME -> {
                                     viewModel.setSimulatedTime(1735689600000L)
-                                    viewModel.setTimeMachineSpeed(com.alijafari.red.astronomy.domain.TimeSimulationSpeed.SPEED_6H)
+                                    viewModel.setTimeMachineSpeed(com.alijafari.red.astronomy.domain.TimeSimulationSpeed.SPEED_1H)
                                     viewModel.setTimeMachinePlaying(true)
                                 }
                                 com.alijafari.red.astronomy.ui.demo.ShowcaseScene.END -> {
@@ -490,9 +504,7 @@ class MainActivity : ComponentActivity() {
                             ) { (tab, activeStyle, labScene) ->
                                 when (tab) {
                                     // Root tab 2 is retired: the Moon screen became a card on Home.
-                                    0 -> if (labScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE) {
-                                        com.zig.antar.ui.AntarRoot(onBack = { com.alijafari.red.astronomy.ui.demo.Showcase.stop() }, language = AppLanguage.PERSIAN, uiStyle = activeStyle, themeMode = uiState.themeMode, showcase = true)
-                                    } else if (labScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY) {
+                                    0 -> if (labScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY) {
                                         com.zig.gravity.ui.GravitySandboxRoot(onBack = { com.alijafari.red.astronomy.ui.demo.Showcase.stop() }, startInPersian = true, startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT, showcase = true)
                                     } else when (activeStyle) {
                                         AppUiStyle.AETHER -> AetherLabScreen(
@@ -548,6 +560,25 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                    }
+
+                    // Keep one actual WebView attached and drawing behind the tour, rather than
+                    // constructing a second renderer at reveal. A tiny alpha keeps its surface live
+                    // without visibly obscuring the app; it is released as soon as the tour ends.
+                    if (showcaseActive) {
+                        val blackHoleVisible = showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE
+                        val rendererAlpha by animateFloatAsState(
+                            targetValue = if (blackHoleVisible) 1f else 0.001f,
+                            animationSpec = tween(500), label = "ShowcaseBlackHoleReveal"
+                        )
+                        com.zig.antar.ui.AntarRoot(
+                            onBack = { com.alijafari.red.astronomy.ui.demo.Showcase.stop() },
+                            language = AppLanguage.PERSIAN, uiStyle = uiState.uiStyle,
+                            themeMode = uiState.themeMode, showcase = true,
+                            showcaseVisible = blackHoleVisible,
+                            onShowcaseReady = { com.alijafari.red.astronomy.ui.demo.Showcase.blackHoleReady = it },
+                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = rendererAlpha }
+                        )
                     }
 
                     AnimatedVisibility(

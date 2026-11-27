@@ -176,6 +176,19 @@ fun HeroSkyCanvas(
     val simulatedOffsetHoursAnim = remember { Animatable(0f) }
     var isDragging by remember { mutableStateOf(false) }
 
+    // Drive the same time-travel offset as a real swipe, including the Home clock readout.
+    // The animation is scoped to the Home scene and is cancelled when the tour leaves it.
+    val showcaseScene = com.alijafari.red.astronomy.ui.demo.Showcase.scene
+    LaunchedEffect(showcaseScene, isScene) {
+        if (isScene && showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.HOME) {
+            simulatedOffsetHoursAnim.snapTo(0f)
+            simulatedOffsetHoursAnim.animateTo(
+                targetValue = 7.5f,
+                animationSpec = tween(durationMillis = 5_400, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+
     // Publish the drag offset (including the animated return) so the Live Sky backdrop follows the same instant.
     // It is reset when Home leaves, exactly as this local offset is.
     LaunchedEffect(Unit) {
