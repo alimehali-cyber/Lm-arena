@@ -243,28 +243,27 @@ class MainActivity : ComponentActivity() {
                     val original = viewModel.uiState.value
                     try {
                         viewModel.setShowcaseLanguage(AppLanguage.PERSIAN)
-                        viewModel.selectTab(4)
-                        delay(6000)
-                        viewModel.selectTab(0)
-                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE
-                        delay(7000)
-                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY
-                        delay(7000)
-                        viewModel.selectTab(1)
-                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.SATELLITES
-                        delay(8000)
-                        viewModel.selectTab(3)
-                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.AR
-                        delay(8000)
-                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.TIME
-                        viewModel.setSimulatedTime(1735689600000L)
-                        viewModel.setTimeMachineSpeed(com.alijafari.red.astronomy.domain.TimeSimulationSpeed.SPEED_6H)
-                        viewModel.setTimeMachinePlaying(true)
-                        delay(8000)
-                        viewModel.setTimeMachinePlaying(false)
-                        viewModel.selectTab(4)
-                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.END
-                        delay(6000)
+                        for (step in com.alijafari.red.astronomy.ui.demo.ShowcasePlan.steps) {
+                            com.alijafari.red.astronomy.ui.demo.Showcase.scene = step.scene
+                            when (step.scene) {
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.HOME -> viewModel.selectTab(4)
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE,
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY -> viewModel.selectTab(0)
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.SATELLITES -> viewModel.selectTab(1)
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.AR -> viewModel.selectTab(3)
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.TIME -> {
+                                    viewModel.setSimulatedTime(1735689600000L)
+                                    viewModel.setTimeMachineSpeed(com.alijafari.red.astronomy.domain.TimeSimulationSpeed.SPEED_6H)
+                                    viewModel.setTimeMachinePlaying(true)
+                                }
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.END -> {
+                                    viewModel.setTimeMachinePlaying(false)
+                                    viewModel.selectTab(4)
+                                }
+                                com.alijafari.red.astronomy.ui.demo.ShowcaseScene.IDLE -> Unit
+                            }
+                            delay(step.durationMs)
+                        }
                     } finally {
                         viewModel.restoreShowcaseState(original.language, original.timeMachineState, original.selectedTab)
                         com.alijafari.red.astronomy.ui.demo.Showcase.stop()
@@ -482,14 +481,18 @@ class MainActivity : ComponentActivity() {
                             val satelliteTabState = rememberSaveableStateHolder()
                             // The screens, drawn over the backdrop.
                             Crossfade(
-                                targetState = Pair(uiState.selectedTab, uiState.uiStyle),
+                                targetState = Triple(
+                                    uiState.selectedTab,
+                                    uiState.uiStyle,
+                                    if (uiState.selectedTab == 0) showcaseScene else com.alijafari.red.astronomy.ui.demo.ShowcaseScene.IDLE
+                                ),
                                 label = "TabSwitch"
-                            ) { (tab, activeStyle) ->
+                            ) { (tab, activeStyle, labScene) ->
                                 when (tab) {
                                     // Root tab 2 is retired: the Moon screen became a card on Home.
-                                    0 -> if (showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE) {
+                                    0 -> if (labScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE) {
                                         com.zig.antar.ui.AntarRoot(onBack = { com.alijafari.red.astronomy.ui.demo.Showcase.stop() }, language = AppLanguage.PERSIAN, uiStyle = activeStyle, themeMode = uiState.themeMode, showcase = true)
-                                    } else if (showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY) {
+                                    } else if (labScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY) {
                                         com.zig.gravity.ui.GravitySandboxRoot(onBack = { com.alijafari.red.astronomy.ui.demo.Showcase.stop() }, startInPersian = true, startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT, showcase = true)
                                     } else when (activeStyle) {
                                         AppUiStyle.AETHER -> AetherLabScreen(
@@ -547,7 +550,10 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    if (showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.END) {
+                    AnimatedVisibility(
+                        visible = showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.END,
+                        enter = fadeIn(), exit = fadeOut()
+                    ) {
                         Box(Modifier.fillMaxSize().background(Color(0xFF080C1A)), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                 Text("زیگ", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Bold)

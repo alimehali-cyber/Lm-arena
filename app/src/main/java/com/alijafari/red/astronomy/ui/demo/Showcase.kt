@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.ui.theme.solidSurface
 
 /** Ephemeral presentation state, deliberately never persisted in user settings. */
-enum class ShowcaseScene { IDLE, HOME, BLACK_HOLE, GRAVITY, SATELLITES, AR, TIME, END }
 object Showcase {
     var scene by mutableStateOf(ShowcaseScene.IDLE)
     val active get() = scene != ShowcaseScene.IDLE

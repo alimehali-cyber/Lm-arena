@@ -131,7 +131,7 @@ fun AntarRoot(
     }
 
     val appContext = context.applicationContext
-    var settings by remember { mutableStateOf(if (showcase) com.zig.antar.config.AntarSimulationSettings() else AntarSettingsStore.load(appContext)) }
+    var settings by remember { mutableStateOf(if (showcase) com.zig.antar.config.AntarSimulationSettings(cameraMode = AntarCameraMode.CINEMATIC) else AntarSettingsStore.load(appContext)) }
     var telemetry by remember { mutableStateOf(AntarTelemetry()) }
     var showUi by rememberSaveable { mutableStateOf(true) }
     var panelOpen by rememberSaveable { mutableStateOf(false) }
