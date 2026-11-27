@@ -101,7 +101,8 @@ fun AntarRoot(
     language: AppLanguage = AppLanguage.ENGLISH,
     uiStyle: AppUiStyle = AppUiStyle.DEFAULT,
     themeMode: ThemeMode = ThemeMode.DARK,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showcase: Boolean = false
 ) {
     val isPersian = language == AppLanguage.PERSIAN
     val context = LocalContext.current
@@ -130,7 +131,7 @@ fun AntarRoot(
     }
 
     val appContext = context.applicationContext
-    var settings by remember { mutableStateOf(AntarSettingsStore.load(appContext)) }
+    var settings by remember { mutableStateOf(if (showcase) com.zig.antar.config.AntarSimulationSettings() else AntarSettingsStore.load(appContext)) }
     var telemetry by remember { mutableStateOf(AntarTelemetry()) }
     var showUi by rememberSaveable { mutableStateOf(true) }
     var panelOpen by rememberSaveable { mutableStateOf(false) }
@@ -147,7 +148,7 @@ fun AntarRoot(
         if (panelOpen) {
             panelOpen = false
         } else {
-            AntarSettingsStore.save(appContext, settings)
+            if (!showcase) AntarSettingsStore.save(appContext, settings)
             onBack()
         }
     }
@@ -161,7 +162,7 @@ fun AntarRoot(
     // Persist settings whenever user changes controls (debounced slightly to avoid disk churn on sliders).
     LaunchedEffect(settings) {
         delay(350L)
-        AntarSettingsStore.save(appContext, settings)
+        if (!showcase) AntarSettingsStore.save(appContext, settings)
     }
 
     val layoutDir = if (isPersian) LayoutDirection.Rtl else LayoutDirection.Ltr

@@ -690,6 +690,8 @@ private fun AetherSkyHeroSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                com.alijafari.red.astronomy.ui.demo.ShowcaseButton()
+
                 AetherOpticalIconLens(
                     icon = Icons.Outlined.Search,
                     contentDescription = if (isFa) "جستجوی آسمان" else "Search the sky",

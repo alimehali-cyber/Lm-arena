@@ -148,7 +148,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                 ?: legacy.getStringSet("monitored_satellite_ids", null)?.toSet() ?: defaults.satelliteIds,
         ))
     }
-    var firstRun by remember(prefs) { mutableStateOf(!prefs.getBoolean("satellite_globe_hud_seen", false)) }
+    var firstRun by remember(prefs) { mutableStateOf(!com.alijafari.red.astronomy.ui.demo.Showcase.active && !prefs.getBoolean("satellite_globe_hud_seen", false)) }
     LaunchedEffect(Unit) {
         if (firstRun) {
             prefs.edit().putBoolean("satellite_globe_hud_seen", true).apply()
@@ -295,6 +295,20 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     var earthFocusTarget by remember { mutableStateOf<EarthFocusTarget?>(null) }
     var centered by remember { mutableStateOf(true) }
     val camera = rememberEarthCameraController(location.latitude, location.longitude, SATELLITE_EARTH_DEFAULT_DISTANCE)
+    LaunchedEffect(com.alijafari.red.astronomy.ui.demo.Showcase.scene) {
+        if (com.alijafari.red.astronomy.ui.demo.Showcase.scene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.SATELLITES) {
+            var last = 0L
+            while (true) {
+                androidx.compose.runtime.withFrameNanos { now ->
+                    if (last != 0L) {
+                        val dt = ((now - last) / 1_000_000_000f).coerceIn(0f, 0.05f)
+                        camera.setCamera(camera.yawRad + dt * 0.28f, camera.pitchRad)
+                    }
+                    last = now
+                }
+            }
+        }
+    }
     fun focusSatellite(live: SatelliteLiveState) {
         screen.focus(live.satellite.id)
         retainedFocus = live.satellite

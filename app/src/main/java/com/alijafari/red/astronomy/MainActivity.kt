@@ -235,6 +235,42 @@ class MainActivity : ComponentActivity() {
                 viewModel.satelliteNavigation.returnFromAr = false
                 viewModel.selectTab(1)
             }
+            val showcaseActive = com.alijafari.red.astronomy.ui.demo.Showcase.active
+            val showcaseScene = com.alijafari.red.astronomy.ui.demo.Showcase.scene
+            BackHandler(showcaseActive) { com.alijafari.red.astronomy.ui.demo.Showcase.stop() }
+            LaunchedEffect(showcaseActive) {
+                if (showcaseActive) {
+                    val original = viewModel.uiState.value
+                    try {
+                        viewModel.setShowcaseLanguage(AppLanguage.PERSIAN)
+                        viewModel.selectTab(4)
+                        delay(6000)
+                        viewModel.selectTab(0)
+                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE
+                        delay(7000)
+                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY
+                        delay(7000)
+                        viewModel.selectTab(1)
+                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.SATELLITES
+                        delay(8000)
+                        viewModel.selectTab(3)
+                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.AR
+                        delay(8000)
+                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.TIME
+                        viewModel.setSimulatedTime(1735689600000L)
+                        viewModel.setTimeMachineSpeed(com.alijafari.red.astronomy.domain.TimeSimulationSpeed.SPEED_6H)
+                        viewModel.setTimeMachinePlaying(true)
+                        delay(8000)
+                        viewModel.setTimeMachinePlaying(false)
+                        viewModel.selectTab(4)
+                        com.alijafari.red.astronomy.ui.demo.Showcase.scene = com.alijafari.red.astronomy.ui.demo.ShowcaseScene.END
+                        delay(6000)
+                    } finally {
+                        viewModel.restoreShowcaseState(original.language, original.timeMachineState, original.selectedTab)
+                        com.alijafari.red.astronomy.ui.demo.Showcase.stop()
+                    }
+                }
+            }
             val langCode = LocaleHelper.getLanguageCode(uiState.language)
             val localizedContext = remember(langCode) {
                 LocaleHelper.setLocale(baseContext, langCode)
@@ -451,7 +487,11 @@ class MainActivity : ComponentActivity() {
                             ) { (tab, activeStyle) ->
                                 when (tab) {
                                     // Root tab 2 is retired: the Moon screen became a card on Home.
-                                    0 -> when (activeStyle) {
+                                    0 -> if (showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.BLACK_HOLE) {
+                                        com.zig.antar.ui.AntarRoot(onBack = { com.alijafari.red.astronomy.ui.demo.Showcase.stop() }, language = AppLanguage.PERSIAN, uiStyle = activeStyle, themeMode = uiState.themeMode, showcase = true)
+                                    } else if (showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.GRAVITY) {
+                                        com.zig.gravity.ui.GravitySandboxRoot(onBack = { com.alijafari.red.astronomy.ui.demo.Showcase.stop() }, startInPersian = true, startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT, showcase = true)
+                                    } else when (activeStyle) {
                                         AppUiStyle.AETHER -> AetherLabScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
@@ -507,13 +547,22 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    if (showcaseScene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.END) {
+                        Box(Modifier.fillMaxSize().background(Color(0xFF080C1A)), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Text("زیگ", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Bold)
+                                Text("نسخهٔ بتا، به‌زودی", color = Color.White, fontSize = 20.sp)
+                            }
+                        }
+                    }
+
                     // Floating Navigation Bar.
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
                     // Where the settings button sits on screen: the anchor the settings menu grows
                     // out of when it opens and returns into when it closes.
                     var settingsButtonCenter by remember { mutableStateOf<Offset?>(null) }
                     val satellitesChromeOccluded by viewModel.satellitesChromeOccluded.collectAsStateWithLifecycle()
-                    if (!com.zig.gravity.ui.ImmersiveScreenState.active && !(uiState.selectedTab == 1 && satellitesChromeOccluded)) {
+                    if (showcaseScene != com.alijafari.red.astronomy.ui.demo.ShowcaseScene.END && !com.zig.gravity.ui.ImmersiveScreenState.active && !(uiState.selectedTab == 1 && satellitesChromeOccluded)) {
                         // The pill dock and the circular settings button form one cluster: close
                         // together, centred at the bottom of the screen. They always travel together.
                         val chromeModifier = Modifier

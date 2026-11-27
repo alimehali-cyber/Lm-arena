@@ -1143,6 +1143,8 @@ private fun HomeSkyHero(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                com.alijafari.red.astronomy.ui.demo.ShowcaseButton()
+
                 Box(
                     modifier = Modifier
                         .size(38.dp)

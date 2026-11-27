@@ -277,6 +277,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Apply and restore presentation-only state without changing saved preferences. */
+    fun setShowcaseLanguage(language: AppLanguage) {
+        _uiState.update { it.copy(language = language) }
+    }
+
+    fun restoreShowcaseState(language: AppLanguage, time: TimeMachineState, tab: Int) {
+        _uiState.update { it.copy(language = language, timeMachineState = time, selectedTab = tab) }
+    }
+
     fun selectTab(tabIndex: Int) {
         _uiState.update { it.copy(selectedTab = tabIndex) }
     }

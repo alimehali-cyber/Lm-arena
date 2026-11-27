@@ -141,16 +141,23 @@ fun GravitySandboxRoot(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     startInPersian: Boolean = true,
-    startInDarkTheme: Boolean = true
+    startInDarkTheme: Boolean = true,
+    showcase: Boolean = false
 ) {
-    val vm: SimulationViewModel = viewModel()
+    val vm: SimulationViewModel = if (showcase) remember { SimulationViewModel() } else viewModel()
     val context = LocalContext.current
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
 
     // ---- persistence (process death) + defaults from the host app -------------------------------
     LaunchedEffect(Unit) {
-        if (!vm.restoreAttempted) {
+        if (showcase) {
+            vm.applyHostDefaults(persian = true, dark = startInDarkTheme)
+            vm.toggleTeaching()
+            vm.loadPreset(com.zig.gravity.sim.Preset.BINARY)
+            vm.togglePlay()
+            vm.markRestoreAttempted()
+        } else if (!vm.restoreAttempted) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val restored = vm.restore(prefs.getString(PREFS_KEY, null))
             if (!restored) vm.applyHostDefaults(persian = startInPersian, dark = startInDarkTheme)
@@ -170,8 +177,10 @@ fun GravitySandboxRoot(
         ImmersiveScreenState.enter()
         onDispose {
             ImmersiveScreenState.exit()
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putString(PREFS_KEY, vm.serialize()).apply()
+            if (!showcase) {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit().putString(PREFS_KEY, vm.serialize()).apply()
+            }
         }
     }
 
@@ -217,7 +226,7 @@ fun GravitySandboxRoot(
     LaunchedEffect(Unit) {
         if (!tutorialChecked) {
             tutorialChecked = true
-            if (TutorialGate.shouldAutoShow(tutorialStore)) showTutorial = true
+            if (!showcase && TutorialGate.shouldAutoShow(tutorialStore)) showTutorial = true
         }
     }
 

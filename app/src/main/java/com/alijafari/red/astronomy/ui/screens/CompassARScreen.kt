@@ -406,15 +406,15 @@ fun CompassARScreen(
     }
 
     // Camera & Location State
-    var isCameraEnabled by remember { mutableStateOf(true) }
-    var isGpsActive by remember { mutableStateOf(true) }
+    var isCameraEnabled by remember { mutableStateOf(!com.alijafari.red.astronomy.ui.demo.Showcase.active) }
+    var isGpsActive by remember { mutableStateOf(!com.alijafari.red.astronomy.ui.demo.Showcase.active) }
     var gpsAccuracyMeters by remember { mutableStateOf<Float?>(null) }
     var lastFixTimestampMs by remember { mutableStateOf<Long?>(null) }
     var lastFixElapsedNanos by remember { mutableStateOf<Long?>(null) }
-    var isSensorActive by remember { mutableStateOf(true) }
+    var isSensorActive by remember { mutableStateOf(!com.alijafari.red.astronomy.ui.demo.Showcase.active) }
     var cameraStreaming by remember { mutableStateOf(false) }
     var cameraBindFailed by remember { mutableStateOf(false) }
-    var userToggledCameraOff by remember { mutableStateOf(false) }
+    var userToggledCameraOff by remember { mutableStateOf(com.alijafari.red.astronomy.ui.demo.Showcase.active) }
     var arViewportSize by remember { mutableStateOf(IntSize.Zero) }
     val cameraPrefs = remember { context.getSharedPreferences("ar_camera_permission_prefs", Context.MODE_PRIVATE) }
     var cameraPermissionAsked by remember { mutableStateOf(cameraPrefs.getBoolean("camera_permission_asked", false)) }
@@ -587,6 +587,21 @@ fun CompassARScreen(
     // Manual Drag Fallback when sensors paused
     var manualAzimuthOffset by remember { mutableStateOf(0.0) }
     var manualPitchOffset by remember { mutableStateOf(20.0) }
+    LaunchedEffect(com.alijafari.red.astronomy.ui.demo.Showcase.active) {
+        if (com.alijafari.red.astronomy.ui.demo.Showcase.active) {
+            var last = 0L
+            while (true) {
+                withFrameNanos { now ->
+                    if (last != 0L) {
+                        val seconds = ((now - last) / 1_000_000_000.0).coerceIn(0.0, 0.05)
+                        manualAzimuthOffset = (manualAzimuthOffset + seconds * 4.0) % 360.0
+                    }
+                    last = now
+                }
+            }
+        }
+    }
+
 
     val currentAzimuth = if (isSensorActive) skyOrientation.azimuth.toDouble() else manualAzimuthOffset
     val currentAltitude = if (isSensorActive) skyOrientation.pitch.toDouble() else manualPitchOffset
@@ -1104,6 +1119,11 @@ fun CompassARScreen(
 
     // Focus Mode Smart Panel State
     var activeExpandedPanel by remember { mutableStateOf<ArExpandedPanel?>(null) }
+    LaunchedEffect(com.alijafari.red.astronomy.ui.demo.Showcase.scene) {
+        if (com.alijafari.red.astronomy.ui.demo.Showcase.scene == com.alijafari.red.astronomy.ui.demo.ShowcaseScene.TIME) {
+            activeExpandedPanel = ArExpandedPanel.TIME_MACHINE
+        }
+    }
 
     // AR Object Visibility Filters Persistence
     val prefs = arPrefs
