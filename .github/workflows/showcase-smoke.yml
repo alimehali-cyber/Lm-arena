@@ -24,6 +24,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '9.3.1'
+      - name: Inspect previous smoke report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 46052315065 -n showcase-smoke-report -D /tmp/old-report || exit 0
+          python3 - <<'PYCODE'
+          import pathlib, re, html
+          for p in pathlib.Path('/tmp/old-report').rglob('*.html'):
+              t = html.unescape(re.sub(r'<[^>]+>', ' ', p.read_text(errors='replace')))
+              for line in t.splitlines():
+                  if any(x in line for x in ('Exception', 'AssertionError', 'Error:', 'FAILED', 'Caused by:')):
+                      print('::warning title=Previous showcase failure::' + line.strip().replace('%','%25')[:1500])
+          PYCODE
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
