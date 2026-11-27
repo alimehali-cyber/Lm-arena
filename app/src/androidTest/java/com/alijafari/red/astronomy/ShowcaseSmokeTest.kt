@@ -63,6 +63,10 @@ class ShowcaseSmokeTest {
             assertEquals(4, vm.uiState.value.selectedTab)
             assertEquals(com.alijafari.red.astronomy.domain.TimeMachineMode.LIVE, vm.uiState.value.timeMachineState.mode)
         }
-        scenario.close()
+        // The animated renderers may never leave the main looper idle, so do not use
+        // ActivityScenario.close(), which waits for idle indefinitely on some emulators.
+        onMain { androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+            .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)
+            .firstOrNull { it is MainActivity }?.finish() }
     }
 }

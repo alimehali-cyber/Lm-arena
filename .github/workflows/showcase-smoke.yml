@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/showcase-smoke.yml
       - app/src/androidTest/java/com/alijafari/red/astronomy/ShowcaseSmokeTest.kt
+      - .github/scripts/showcase-smoke.sh
 
 permissions:
   contents: read
