@@ -39,7 +39,30 @@ jobs:
           disk-size: 6000M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: false
-          script: ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.ShowcaseSmokeTest -Pgravity.ci.tests=false --no-daemon
+          script: bash .github/scripts/showcase-smoke.sh
+      - name: Annotate test failures
+        if: failure()
+        run: |
+          python3 - <<'PYCODE'
+          import glob, pathlib, xml.etree.ElementTree as ET
+          def emit(title, text):
+              text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')[:4000]
+              print(f'::error title={title}::{text}')
+          for path in glob.glob('app/build/outputs/androidTest-results/**/*.xml', recursive=True):
+              try:
+                  for case in ET.parse(path).getroot().iter('testcase'):
+                      for node in case:
+                          if node.tag in ('failure', 'error'):
+                              emit('Showcase test', (node.attrib.get('message', '') + ' ' + (node.text or ''))[:3500])
+              except ET.ParseError:
+                  pass
+          for name in ('showcase-gradle.log', 'showcase-crash.log'):
+              p = pathlib.Path(name)
+              if p.exists():
+                  lines = p.read_text(errors='replace').splitlines()
+                  interesting = [line for line in lines if any(t in line for t in ('FAILED', 'FAILURE:', 'Execution failed', 'error:', 'Exception', 'Process crashed', 'FATAL EXCEPTION', 'BUILD FAILED'))]
+                  for line in interesting[-20:]: emit(name, line)
+          PYCODE
       - name: Upload instrumented test report
         if: always()
         uses: actions/upload-artifact@v4
