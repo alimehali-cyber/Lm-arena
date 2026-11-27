@@ -114,7 +114,8 @@ class AntarPayloadAndIntegrationTest {
 
         assertTrue(antarRoot.contains("ImmersiveScreenState.enter()"))
         assertTrue(antarRoot.contains("ImmersiveScreenState.exit()"))
-        assertTrue(antarRoot.contains("BackHandler(enabled = true)"))
+        // A prewarmed showcase renderer must not intercept Back until it is visible.
+        assertTrue(antarRoot.contains("BackHandler(enabled = showcaseVisible)"))
         assertTrue(antarRoot.contains("rememberCosmicBackdropColor"))
         assertFalse(antarRoot.contains("Brush.radialGradient"))
         val webEngine = readSource("java/com/zig/antar/render/AntarWebEngineView.kt")
